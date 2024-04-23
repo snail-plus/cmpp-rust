@@ -1,0 +1,18 @@
+# 忽略所有的 .log 文件
+*.log
+
+# 忽略 build 目录
+/build/
+/target
+# 忽略 temp 目录及其下所有内容
+/temp/*
+
+# 忽略 .env 文件
+.env
+.idea/
+
+# 忽略 exe
+*.exe
+/qodana.yaml
+.vscode/
+.vscode/settings.json
