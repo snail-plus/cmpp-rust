@@ -47,8 +47,8 @@ impl Server {
         info!("start server, addr: {}, target_addr: {}", &self.cfg.addr, &self.cfg.target_addr);
         loop {
             match tcp.accept().await {
-                Ok((stream, _addr)) => {
-
+                Ok((stream, client_addr)) => {
+                    info!("accept client: {}", client_addr.to_string());
                     let handlers_clone = self.handlers.clone();
                     let  conn = self.new_conn(stream, handlers_clone).unwrap();
                     let mut conn_clone = Arc::new(Mutex::new(conn));
@@ -58,7 +58,7 @@ impl Server {
                         match conn_lock.serve().await {
                             Ok(()) => {}
                             Err(e) => {
-                                error!("serve err: {:?}", e)
+                                error!("serve err: {:?}, addr: {}", e, client_addr.to_string())
                             }
                         }
                     });
