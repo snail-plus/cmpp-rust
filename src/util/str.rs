@@ -29,16 +29,14 @@ pub fn ucs2_to_utf8(in_bytes: Vec<u8>) -> Result<String, String> {
         return Err("Invalid UCS-2 byte sequence: length is not a multiple of 2".to_string());
     }
 
-    let mut utf8_bytes = Vec::new();
-    for chunk in in_bytes.chunks(2) {
-        let u16_val = u16::from_be_bytes(chunk.try_into().unwrap());
+    let mut utf8_chars = Vec::new();
+    for chunk in in_bytes.chunks_exact(2) {
+        // 将两个字节解释为大端序的u16
+        let u16_val = u16::from_be_bytes(chunk);
 
         // 尝试将u16转换为char
         match char::try_from(u16_val) {
-            Ok(c) => {
-                // 如果转换成功，将char编码为UTF-8并添加到utf8_bytes中
-                utf8_bytes.extend(c.encode_utf8(&mut [0; 4]).iter().cloned());
-            }
+            Ok(c) => utf8_chars.push(c),
             Err(_) => {
                 // 如果u16值不是一个有效的Unicode字符，返回错误
                 return Err("Invalid UCS-2 character".to_string());
@@ -46,9 +44,9 @@ pub fn ucs2_to_utf8(in_bytes: Vec<u8>) -> Result<String, String> {
         }
     }
 
-    // 将utf8_bytes转换为UTF-8编码的字符串
-    let utf8_str = String::from_utf8(utf8_bytes)
-        .map_err(|e| format!("Failed to create UTF-8 string: {}", e))?;
+    // 将utf8_chars向量转换为UTF-8编码的字符串
+    let utf8_str = String::from_utf8(utf8_chars.into_iter().flat_map(|c| c.encode_utf8()).collect::<Vec<u8>>())
+        .map_err(|e| format!("Failed to encode UTF-8 string: {}", e))?;
 
     Ok(utf8_str)
 }
