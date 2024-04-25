@@ -5,6 +5,7 @@ use std::io::Error;
 use std::net::SocketAddr;
 use std::str::FromStr;
 use std::sync::{Arc, RwLock};
+use std::task::ready;
 use std::time;
 use std::time::Duration;
 use std::vec::Drain;
@@ -29,12 +30,12 @@ const MAX_SIZE: usize = 2048;
 pub struct Server {
     counter: Arc<Mutex<i32>>,
     cfg: Config,
-    handlers: Vec<Arc<RwLock<dyn CmppHandler>>>
+    handlers: Vec<Arc<RwLock<dyn CmppHandler<dyn Packer, dyn Packer>>>>
 }
 
 impl Server {
     pub async fn new(cfg: Config) -> io::Result<Server> {
-        let mut handlers: Vec<Arc<RwLock<dyn CmppHandler>>> = Vec::new();
+        let mut handlers: Vec<Arc<RwLock<dyn CmppHandler<dyn Packer, dyn Packer>>>> = Vec::new();
         handlers.push(Arc::new(RwLock::new(CmppLoginHandler {})));
         handlers.push(Arc::new(RwLock::new(Cmpp3SubmitHandler {})));
         let svr = Server { counter: Arc::new(Mutex::new(0)), cfg, handlers};
@@ -73,7 +74,7 @@ impl Server {
         }
     }
 
-    pub fn new_conn(&self, mut stream: TcpStream, handlers: Vec<Arc<RwLock<dyn CmppHandler>>>) -> io::Result<Conn> {
+    pub fn new_conn(&self, mut stream: TcpStream, handlers: Vec<Arc<RwLock<dyn CmppHandler<dyn Packer, dyn Packer>>>>) -> io::Result<Conn> {
          Ok(Conn{tcp_stream: stream, handlers })
     }
 

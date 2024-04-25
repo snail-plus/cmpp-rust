@@ -16,7 +16,7 @@ const CMPP3_PACKET_MAX: u32 = 3335;
 const CMPP3_PACKET_MIN: u32 = 12;
 
 
-pub type Handlers = Vec<Arc<RwLock<dyn CmppHandler>>>;
+pub type Handlers = Vec<Arc<RwLock<dyn CmppHandler<dyn Packer, dyn Packer>>>>;
 
 
 pub struct Conn {
@@ -55,32 +55,21 @@ impl Conn {
     }
 
     async fn handel_message(&mut self, msg: CmppMessage) -> Result<(), IoError> {
-        let (mut req_packer, res_packer) = unpack(msg.command_id, &msg.body_data)?;
+        let (mut req_packer, mut res_packer) = unpack(msg.command_id, &msg.body_data)?;
         let seq_id = req_packer.seq_id();
-        let req_packet = Packet{
-            packer: req_packer,
-            seq_id,
-            command_id: msg.command_id,
-        };
-
-        let mut res_packet = Packet{
-            packer: res_packer,
-            seq_id,
-            command_id: msg.command_id,
-        };
 
 
         for h in &self.handlers {
             let rg = h.read().unwrap();
-            if let Ok(e) = rg.handle(&req_packet, &mut res_packet) {
+            if let Ok(e) = rg.handle(&req_packer, &mut res_packer) {
                 if e {
                     break
                 }
             }
         }
 
-        info!("write res: {:?}", res_packet.packer);
-        let write_bytes = res_packet.packer.pack(seq_id)?;
+        info!("write res: {:?}", res_packer);
+        let write_bytes = res_packer.pack(seq_id)?;
         self.finish_packet(&write_bytes).await
     }
 
