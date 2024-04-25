@@ -15,12 +15,6 @@ const CMPP2_PACKET_MIN: u32 = 12;
 const CMPP3_PACKET_MAX: u32 = 3335;
 const CMPP3_PACKET_MIN: u32 = 12;
 
-pub struct ReadBuffer {
-    total_len: u32,
-    command_id: u32,
-    left_data: Vec<u8>
-}
-
 
 pub type Handlers = Vec<Arc<RwLock<dyn CmppHandler>>>;
 
@@ -75,7 +69,6 @@ impl Conn {
             command_id: msg.command_id,
         };
 
-        info!("command_id: {}", msg.command_id);
 
         for h in &self.handlers {
             let rg = h.read().unwrap();
@@ -86,7 +79,7 @@ impl Conn {
             }
         }
 
-
+        info!("write res: {:?}", res_packet.packer);
         let write_bytes = res_packet.packer.pack(seq_id)?;
         self.finish_packet(&write_bytes).await
     }
@@ -95,7 +88,6 @@ impl Conn {
      async fn finish_packet(&mut self, res_bytes: &Vec<u8>) -> Result<(), IoError> {
          match self.tcp_stream.write_all(&res_bytes).await {
              Ok(_) => {
-                 info!("write len: {}", res_bytes.len());
                  Ok(())
              }
              Err(e) => {

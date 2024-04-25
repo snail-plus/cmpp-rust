@@ -1,20 +1,18 @@
-use std::fmt::{Debug};
+use std::fmt::Debug;
 use std::io::{Error, ErrorKind};
-use std::ptr::write;
-use std::string::FromUtf8Error;
-use bytes::Buf;
-use log::info;
-use serde_json::from_str;
 
-use crate::server::conn::Conn;
-use crate::util::byte::{u32_to_byte_array};
+use bytes::Buf;
+use tokio_util::codec::{Decoder, Encoder};
+
+use crate::util::byte::{u32_to_byte_array, u64_to_byte_array};
 use crate::util::str::{oct_string, octet_string, ucs2_to_utf8};
-use tokio_util::codec::{Decoder, Encoder, Framed};
-use crate::server::IoError;
 
 pub const CMPP_CONNECT: u32 = 1;
 pub const CMPP_CONNECT_RESP: u32 = 2147483649;
 pub const CMPP_SUBMIT: u32 = 4;
+pub const CMPP_SUBMIT_RESP: u32 = 2147483652;
+
+pub const CMPP_HEADER_LEN: u32 = 12;
 
 const CMPP_CONN_REQ_PKT_LEN: u32 = 4 + 4 + 4 + 6 + 16 + 1 + 4;
 //39d, 0x27
@@ -22,7 +20,7 @@ const CMPP3CONN_RSP_PKT_LEN: u32 = 4 + 4 + 4 + 4 + 16 + 1;    //33d, 0x21
 
 pub trait Packer: Send + Debug {
     fn pack(&self, seq_id: u32) -> Result<Vec<u8>, Error>;
-    fn unpack(&mut self, command_id: u32, data: &Vec<u8>) -> Result<(), Error>;
+    fn unpack(&mut self, data: &Vec<u8>) -> Result<(), Error>;
 
     fn seq_id(&self) -> u32;
 }
@@ -32,16 +30,20 @@ pub fn unpack(command_id: u32, data: &Vec<u8>) -> Result<(Box<dyn Packer>, Box<d
     match command_id {
         CMPP_CONNECT => {
             let mut pkt = CmppConnReqPkt::default();
-            pkt.unpack(command_id, data)?;
-            info!("receive cmpp_connect");
+            pkt.unpack(data)?;
             Ok((Box::new(pkt), Box::new(Cmpp3ConnRspPkt::default())))
         }
 
         CMPP_SUBMIT => {
             let mut pkt = Cmpp3SubmitReqPkt::default();
-            pkt.unpack(command_id, data)?;
-            info!("receive cmpp_submit");
-            Ok((Box::new(pkt), Box::new(Cmpp3ConnRspPkt::default())))
+            pkt.unpack(data)?;
+            let msg_id = pkt.msg_id;
+            let seq_id = pkt.seq_id;
+            Ok((Box::new(pkt), Box::new(Cmpp3SubmitRspPkt{
+                msg_id,
+                result: 0,
+                seq_id,
+            })))
         }
 
         _ => {
@@ -87,7 +89,7 @@ impl Packer for CmppConnReqPkt {
         Ok(buffer)
     }
 
-    fn unpack(&mut self, _command_id: u32, _data: &Vec<u8>) -> Result<(), Error> {
+    fn unpack(&mut self, _data: &Vec<u8>) -> Result<(), Error> {
         return Ok(());
     }
 
@@ -141,7 +143,7 @@ impl Packer for Cmpp3ConnRspPkt {
         Ok(buffer)
     }
 
-    fn unpack(&mut self, _command_id: u32, _data: &Vec<u8>) -> Result<(), Error> {
+    fn unpack(&mut self, _data: &Vec<u8>) -> Result<(), Error> {
         Ok(())
     }
 
@@ -219,7 +221,7 @@ impl Packer for Cmpp3SubmitReqPkt {
         Ok(vec![])
     }
 
-    fn unpack(&mut self, _command_id: u32, data: &Vec<u8>) -> Result<(), Error> {
+    fn unpack(&mut self, data: &Vec<u8>) -> Result<(), Error> {
         let mut buf = bytes::BytesMut::with_capacity(data.len());
         buf.extend_from_slice(data);
         // Sequence Id
@@ -274,7 +276,7 @@ impl Packer for Cmpp3SubmitReqPkt {
 
         self.dest_usr_tl = buf.get_u8();
         let mut dest_terminal_ids = Vec::with_capacity(self.dest_usr_tl as usize);
-        for _i in 0.. self.dest_usr_tl {
+        for _i in 0..self.dest_usr_tl {
             let mut dest_terminal_id_vec = vec![0u8; 32];
             buf.copy_to_slice(&mut dest_terminal_id_vec);
             dest_terminal_ids.push(oct_string(dest_terminal_id_vec));
@@ -286,19 +288,49 @@ impl Packer for Cmpp3SubmitReqPkt {
         self.msg_length = buf.get_u8();
         let mut msg_content_vec = vec![0u8; self.msg_length as usize];
         buf.copy_to_slice(&mut msg_content_vec);
-        match  ucs2_to_utf8(msg_content_vec) {
-            Ok(s) => {
-                self.msg_content = s;
-            }
-            Err(e) => {
-
-            }
-        };
+        match ucs2_to_utf8(msg_content_vec.as_slice()) {
+            Ok(content) => { self.msg_content = content }
+            Err(e) => { return Err(Error::new(ErrorKind::Other, format!("解析msg_content失败 {:?}", e))); }
+        }
 
         let mut link_id_vec = vec![0u8; 20];
         buf.copy_to_slice(&mut link_id_vec);
         self.link_id = oct_string(link_id_vec);
 
+        Ok(())
+    }
+
+    fn seq_id(&self) -> u32 {
+        self.seq_id
+    }
+}
+
+#[derive(Debug)]
+pub struct Cmpp3SubmitRspPkt  {
+    msg_id: u64,
+    result: u32,
+
+    // session info
+    seq_id: u32,
+}
+
+impl Packer for Cmpp3SubmitRspPkt {
+    fn pack(&self, seq_id: u32) -> Result<Vec<u8>, Error> {
+        let pkt_len = CMPP_HEADER_LEN + 8 + 4;
+        let mut buffer = Vec::with_capacity(pkt_len as usize);
+        // Pack header
+
+        buffer.extend_from_slice(&u32_to_byte_array(pkt_len));
+        buffer.extend_from_slice(&u32_to_byte_array(CMPP_SUBMIT_RESP));
+        buffer.extend_from_slice(&u32_to_byte_array(seq_id));
+
+        // Pack Body
+        buffer.extend_from_slice(&u64_to_byte_array(self.msg_id));
+        buffer.extend_from_slice(&u32_to_byte_array(self.result));
+        Ok(buffer)
+    }
+
+    fn unpack(&mut self, _data: &Vec<u8>) -> Result<(), Error> {
         Ok(())
     }
 
