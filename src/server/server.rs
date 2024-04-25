@@ -17,11 +17,10 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{mpsc, Mutex, oneshot};
 use tokio::sync::mpsc::Sender;
 use tokio::time::sleep;
-use crate::server::packet::{Packer, Packet};
-use crate::server::response::Response;
+use crate::server::packet::{Packer};
 
 use crate::util::time::format_date;
-use super::{Config, IoError, CmppHandler, LoginHandler, Conn};
+use super::{Config, IoError, CmppHandler, CmppLoginHandler, Cmpp3SubmitHandler, Conn};
 
 #[allow(dead_code)]
 const MAX_SIZE: usize = 2048;
@@ -36,7 +35,8 @@ pub struct Server {
 impl Server {
     pub async fn new(cfg: Config) -> io::Result<Server> {
         let mut handlers: Vec<Arc<RwLock<dyn CmppHandler>>> = Vec::new();
-        handlers.push(Arc::new(RwLock::new(LoginHandler{})));
+        handlers.push(Arc::new(RwLock::new(CmppLoginHandler {})));
+        handlers.push(Arc::new(RwLock::new(Cmpp3SubmitHandler {})));
         let svr = Server { counter: Arc::new(Mutex::new(0)), cfg, handlers};
         Ok(svr)
     }
@@ -58,7 +58,7 @@ impl Server {
                         match conn_lock.serve().await {
                             Ok(()) => {}
                             Err(e) => {
-                                error!("serve err: {:?}, addr: {}", e, client_addr.to_string())
+                                error!("serve err,exit : {:?}, addr: {}", e, client_addr.to_string())
                             }
                         }
                     });

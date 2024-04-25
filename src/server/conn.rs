@@ -8,7 +8,6 @@ use tokio::net::TcpStream;
 use tokio_util::codec::{Decoder, Framed};
 use crate::server::{CmppDecoder, CmppEncoder, CmppHandler, CmppMessage, IoError};
 use crate::server::packet::{Packer, Packet, unpack};
-use crate::server::response::Response;
 
 const CMPP_HEADER_LEN: u32 = 12;
 const CMPP2_PACKET_MAX: u32 = 2477;
@@ -41,10 +40,6 @@ impl Conn {
             match self.tcp_stream.read_buf(&mut buf).await {
                 Ok(read_length) => {
                     if read_length == 0 {
-                        while let Some(frame) = decoder.decode_eof(&mut buf)? {
-                            self.handel_message(frame).await?;
-                            continue
-                        }
                         return Err(IoError{message: "eof err".to_string()})
                     }
 
@@ -68,21 +63,32 @@ impl Conn {
     async fn handel_message(&mut self, msg: CmppMessage) -> Result<(), IoError> {
         let (mut req_packer, res_packer) = unpack(msg.command_id, &msg.body_data)?;
         let seq_id = req_packer.seq_id();
-        let mut r = Response{
+        let req_packet = Packet{
+            packer: req_packer,
+            seq_id,
+            command_id: msg.command_id,
+        };
+
+        let mut res_packet = Packet{
             packer: res_packer,
             seq_id,
+            command_id: msg.command_id,
         };
+
+        info!("command_id: {}", msg.command_id);
 
         for h in &self.handlers {
             let rg = h.read().unwrap();
-            if let Ok(e) = rg.handle(&mut r) {
-                info!("begin hande msg {}", e)
+            if let Ok(e) = rg.handle(&req_packet, &mut res_packet) {
+                if e {
+                    break
+                }
             }
         }
 
 
-        let rrr = r.packer.pack(seq_id)?;
-        self.finish_packet(&rrr).await
+        let write_bytes = res_packet.packer.pack(seq_id)?;
+        self.finish_packet(&write_bytes).await
     }
 
 

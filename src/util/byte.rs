@@ -7,3 +7,4 @@ pub fn u32_to_byte_array(value: u32) -> [u8; 4] {
     ];
     bytes
 }
+

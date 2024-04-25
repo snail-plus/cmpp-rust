@@ -1,4 +1,6 @@
 use std::io;
+use std::io::{Cursor, Seek, SeekFrom};
+use log::info;
 
 use tokio_util::bytes::{Buf, BufMut, BytesMut};
 use tokio_util::codec::{Decoder, Encoder};
@@ -37,25 +39,29 @@ impl Decoder for CmppDecoder {
             return Ok(None);
         }
 
-        let total_length = buf.get_u32();
-        let command_id = buf.get_u32();
+        let mut cursor = Cursor::new(&buf);
+        let total_length = cursor.get_u32();
+        let command_id = cursor.get_u32();
 
         let body_length = (total_length - 8) as usize;
-        let mut body_buf = vec![0u8; body_length];
 
-        if buf.remaining() < body_length {
+        if cursor.remaining() < body_length {
             // The full data has not yet arrived.
             //
             // We reserve more space in the buffer. This is not strictly
             // necessary, but is a good idea performance-wise.
-            buf.reserve(8 + body_length - buf.len());
 
+            // reset position
+            info!("rest position");
             // We inform the Framed that we need more bytes to form the next
             // frame.
             return Ok(None);
         }
-        
-        buf.copy_to_slice(&mut body_buf);
+
+        let mut body_buf = vec![0u8; body_length];
+        cursor.copy_to_slice(&mut body_buf);
+        buf.advance(8 + body_length);
+
 
         Ok(Some(CmppMessage{
             total_length,
