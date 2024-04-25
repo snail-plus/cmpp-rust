@@ -1,21 +1,27 @@
+use std::collections::HashMap;
+use std::fmt::Debug;
 use std::future::Future;
+use std::io::Error;
 use std::net::SocketAddr;
-use std::path::Path;
 use std::str::FromStr;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
+use std::time;
 use std::time::Duration;
+use std::vec::Drain;
 
 use chrono::Local;
-use log::{error, info};
+use log::{debug, error, info};
 use tokio::io;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::Mutex;
+use tokio::sync::{mpsc, Mutex, oneshot};
+use tokio::sync::mpsc::Sender;
 use tokio::time::sleep;
+use crate::server::packet::{Packer, Packet};
+use crate::server::response::Response;
 
 use crate::util::time::format_date;
-
-use super::Config;
+use super::{Config, IoError, CmppHandler, LoginHandler, Conn};
 
 #[allow(dead_code)]
 const MAX_SIZE: usize = 2048;
@@ -24,64 +30,40 @@ const MAX_SIZE: usize = 2048;
 pub struct Server {
     counter: Arc<Mutex<i32>>,
     cfg: Config,
+    handlers: Vec<Arc<RwLock<dyn CmppHandler>>>
 }
 
 impl Server {
     pub async fn new(cfg: Config) -> io::Result<Server> {
-        let svr = Server { counter: Arc::new(Mutex::new(0)), cfg };
+        let mut handlers: Vec<Arc<RwLock<dyn CmppHandler>>> = Vec::new();
+        handlers.push(Arc::new(RwLock::new(LoginHandler{})));
+        let svr = Server { counter: Arc::new(Mutex::new(0)), cfg, handlers};
         Ok(svr)
     }
 
-    pub async fn start(&mut self) {
+    pub async fn listen_and_serve(&mut self) {
         let addr = SocketAddr::from_str(&self.cfg.addr).unwrap();
         let tcp = TcpListener::bind(addr).await.unwrap();
         info!("start server, addr: {}, target_addr: {}", &self.cfg.addr, &self.cfg.target_addr);
         loop {
             match tcp.accept().await {
+                Ok((stream, _addr)) => {
 
-                Ok((mut stream, mut addr)) => {
-                    info!("客户端addr: {}", addr.to_string());
-                    let counter = Arc::clone(&self.counter);
+                    let handlers_clone = self.handlers.clone();
+                    let  conn = self.new_conn(stream, handlers_clone).unwrap();
+                    let mut conn_clone = Arc::new(Mutex::new(conn));
 
                     tokio::spawn(async move {
-                        let mut buf = vec![0u8; 1024];
-                        loop {
-                            let read_result = stream.read(&mut buf).await.map(|u| {
-                                return u;
-                            }).map_err(move |e| {
-                                error!("failed: {:?}, {}", e, addr.to_string());
-                            });
-
-                            if let Err(e) = read_result {
-                                return;
-                            }
-
-                            let n = stream.read(&mut buf).await.expect("读取失败");
-                            if n == 0 {
-                                info!("abort conn");
-                                return;
-                            }
-
-                            let now = Local::now();
-                            let date_str = format_date(now, "%Y-%m-%d %H:%M:%S");
-                            info!("server time：{}, receive str: {}", date_str, String::from_utf8_lossy(&buf[0..n]).to_string());
-
-
-                            let mut num =counter.lock().await;
-                            *num += 1;
-
-                            let greeting = format!("now: {}, chat time: {}", date_str, num);
-                            // release lock
-                            drop(num);
-
-                            match stream.write_all(greeting.as_bytes()).await {
-                                Ok(_) => {}
-                                Err(e) => { error!("write fail {}", e) }
+                        let mut conn_lock = conn_clone.lock().await;
+                        match conn_lock.serve().await {
+                            Ok(()) => {}
+                            Err(e) => {
+                                error!("serve err: {:?}", e)
                             }
                         }
                     });
-
                 },
+
                 Err(e) => {
                     info!("couldn't get client: {:?}", e);
                     let d = Duration::new(1, 0);
@@ -89,6 +71,10 @@ impl Server {
                 }
             }
         }
+    }
+
+    pub fn new_conn(&self, mut stream: TcpStream, handlers: Vec<Arc<RwLock<dyn CmppHandler>>>) -> io::Result<Conn> {
+         Ok(Conn{tcp_stream: stream, handlers })
     }
 
 }

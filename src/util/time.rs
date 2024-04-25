@@ -1,6 +1,6 @@
-use std::time::{Duration, Instant};
-use chrono::{DateTime, Local};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+use chrono::{DateTime, Local};
 
 /// Convert Duration to milliseconds.
 #[inline]
@@ -31,6 +31,17 @@ pub fn format_date(date: DateTime<Local>, format: &str) -> String {
     // 格式化本地时间为字符串
     let formatted_local = date.format(format).to_string();
     return formatted_local;
+}
+
+fn get_timestamp_in_seconds() -> u64 {
+    // 获取当前的系统时间
+    let now = SystemTime::now();
+
+    // 计算从UNIX纪元到现在的时间差
+    let duration_since_epoch = now.duration_since(UNIX_EPOCH).unwrap();
+
+    // 将时间差转换为秒
+    duration_since_epoch.as_secs()
 }
 
 pub struct SlowTimer {
@@ -88,10 +99,10 @@ const NANOSECONDS_PER_MILLISECOND: i64 = 1_000_000;
 
 #[cfg(test)]
 mod tests {
-    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::{Arc, Mutex};
     use std::thread;
     use std::time::Duration;
+
     use chrono::Local;
 
     use crate::util::time::{duration_to_ms, duration_to_nanos, duration_to_sec, format_date};

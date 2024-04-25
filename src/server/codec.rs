@@ -1,0 +1,80 @@
+use std::io;
+
+use tokio_util::bytes::{Buf, BufMut, BytesMut};
+use tokio_util::codec::{Decoder, Encoder};
+
+const CMPP_CONN_REQ_PKT_LEN:  u32 = 4 + 4 + 4 + 6 + 16 + 1 + 4;
+
+#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct CmppMessage {
+    total_length: u32,
+    pub command_id: u32,
+    pub body_data: Vec<u8>,
+}
+
+#[derive(Clone, Copy)]
+pub struct CmppDecoder;
+
+impl CmppDecoder {
+    pub fn new() -> CmppDecoder {
+        CmppDecoder {}
+    }
+}
+
+impl Default for CmppDecoder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Decoder for CmppDecoder {
+    type Item = CmppMessage;
+    type Error = io::Error;
+
+    fn decode(&mut self, buf: &mut BytesMut) -> Result<Option<CmppMessage>, Self::Error> {
+        if buf.len() < CMPP_CONN_REQ_PKT_LEN as usize {
+            // Not enough data to read length marker.
+            return Ok(None);
+        }
+
+        let total_length = buf.get_u32();
+        let command_id = buf.get_u32();
+
+        let body_length = (total_length - 8) as usize;
+        let mut body_buf = vec![0u8; body_length];
+
+        if buf.remaining() < body_length {
+            // The full data has not yet arrived.
+            //
+            // We reserve more space in the buffer. This is not strictly
+            // necessary, but is a good idea performance-wise.
+            buf.reserve(8 + body_length - buf.len());
+
+            // We inform the Framed that we need more bytes to form the next
+            // frame.
+            return Ok(None);
+        }
+        
+        buf.copy_to_slice(&mut body_buf);
+
+        Ok(Some(CmppMessage{
+            total_length,
+            command_id,
+            body_data: body_buf,
+        }))
+    }
+}
+
+
+pub struct CmppEncoder;
+
+impl Encoder<CmppMessage> for CmppEncoder {
+    type Error = io::Error;
+
+    fn encode(&mut self, item: CmppMessage, dst: &mut BytesMut) -> Result<(), Self::Error> {
+        dst.put_u32(item.total_length);
+        dst.put_u32(item.command_id);
+        dst.extend_from_slice(&item.body_data);
+        Ok(())
+    }
+}
