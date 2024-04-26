@@ -1,6 +1,5 @@
 use std::io;
-use std::io::{Cursor, Seek, SeekFrom};
-use log::info;
+use std::io::Cursor;
 
 use tokio_util::bytes::{Buf, BufMut, BytesMut};
 use tokio_util::codec::{Decoder, Encoder};
@@ -52,7 +51,6 @@ impl Decoder for CmppDecoder {
             // necessary, but is a good idea performance-wise.
 
             // reset position
-            info!("rest position");
             // We inform the Framed that we need more bytes to form the next
             // frame.
             return Ok(None);
