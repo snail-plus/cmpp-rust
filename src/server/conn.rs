@@ -15,7 +15,6 @@ const CMPP2_PACKET_MIN: u32 = 12;
 const CMPP3_PACKET_MAX: u32 = 3335;
 const CMPP3_PACKET_MIN: u32 = 12;
 
-
 pub type Handlers = Vec<Arc<RwLock<dyn CmppHandler>>>;
 
 
@@ -72,10 +71,9 @@ impl Conn {
 
         for h in &self.handlers {
             let rg = h.read().unwrap();
-            if let Ok(e) = rg.handle(&req_packet, &mut res_packet) {
-                if e {
-                    break
-                }
+            if rg.support(msg.command_id) {
+                rg.handle(&req_packet, &mut res_packet)?;
+                break
             }
         }
 
