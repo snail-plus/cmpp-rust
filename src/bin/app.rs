@@ -1,3 +1,7 @@
+use std::env;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use log::info;
+
 struct MyStruct {
     field: i32,
 }
@@ -8,6 +12,14 @@ fn modify_my_struct(my_struct: &mut MyStruct, new_value: i32) {
 }
 
 fn main() {
+    env::set_var("RUST_LOG", "info");
+    env_logger::init();
+    let foo = AtomicUsize::new(0);
+    assert_eq!(foo.fetch_add(10, Ordering::SeqCst), 0);
+    assert_eq!(foo.load(Ordering::SeqCst), 10);
+
+    info!("foo {}", foo.load(Ordering::SeqCst));
+
     // 创建一个MyStruct的可变实例
     let mut my_instance = MyStruct { field: 42 };
     println!("Before modification: {}", my_instance.field); // 输出：Before modification: 42
