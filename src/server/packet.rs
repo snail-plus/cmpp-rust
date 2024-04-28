@@ -14,7 +14,7 @@ pub const CMPP_SUBMIT_RESP: u32 = 2147483652;
 
 pub const CMPP_ACTIVE_TEST_REQ_PKT_LEN: u32 = 12;
 
-pub const  CMPP_ACTIVE_TEST: u8 = 8;
+pub const  CMPP_ACTIVE_TEST: u32= 8;
 
 pub const CMPP_HEADER_LEN: u32 = 12;
 
@@ -72,9 +72,9 @@ pub struct CmppActiveTestReqPkt {
 impl Packer for CmppActiveTestReqPkt {
 
     fn pack(&self, seq_id: u32) -> Result<Vec<u8>, Error> {
-        let mut buffer = Vec::with_capacity(CMPP_CONN_REQ_PKT_LEN as usize);
-        buffer.put_u32(CMPP_CONN_REQ_PKT_LEN);
-        buffer.put_u8(CMPP_ACTIVE_TEST);
+        let mut buffer = Vec::with_capacity(12usize);
+        buffer.put_u32(12u32);
+        buffer.put_u32(CMPP_ACTIVE_TEST);
         buffer.put_u32(seq_id);
         Ok(buffer)
     }

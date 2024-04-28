@@ -50,12 +50,10 @@ impl Server {
                 Ok((stream, client_addr)) => {
                     info!("accept client: {}", client_addr.to_string());
                     let handlers_clone = self.handlers.clone();
-                    let  conn = self.new_conn(stream, handlers_clone).unwrap();
-                    let mut conn_clone = Arc::new(Mutex::new(conn));
-
+                    
                     tokio::spawn(async move {
-                        let mut conn_lock = conn_clone.lock().await;
-                        match conn_lock.serve().await {
+                        let mut conn = Conn::new(stream, handlers_clone);
+                        match conn.serve().await {
                             Ok(()) => {}
                             Err(e) => {
                                 error!("serve err,exit : {:?}, addr: {}", e, client_addr.to_string())
@@ -73,8 +71,8 @@ impl Server {
         }
     }
 
-    pub fn new_conn(&self, mut stream: TcpStream, handlers: Vec<Arc<RwLock<dyn CmppHandler>>>) -> io::Result<Conn> {
-         Ok(Conn{tcp_stream: stream, handlers })
+    pub fn new_conn(&self, stream: TcpStream, handlers: Vec<Arc<RwLock<dyn CmppHandler>>>) ->Conn {
+         Conn::new(stream, handlers)
     }
 
 }
