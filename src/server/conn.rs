@@ -1,7 +1,7 @@
 use std::{io, task};
 use std::io::Error;
 use std::ops::DerefMut;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::task::{Poll, Wake, Waker};
 use std::time::Duration;
@@ -50,40 +50,24 @@ impl Conn {
     pub async fn serve(&mut self) -> Result<(), IoError> {
         let mut buf = bytes::BytesMut::new();
         let mut decoder = CmppDecoder::default();
-        let (tx, mut rx) = mpsc::channel::<Vec<u8>>(32);
-        let mut heartbeat_ticker = interval(HEARTBEAT_INTERVAL);
-
 
         loop {
-            let mut seq_id = 0;
-            tokio::select! {
-                biased;
-                read_result = self.tcp_stream.read_buf(&mut buf) => {
-                    heartbeat_ticker.reset();
-                    match read_result {
-                         Ok(_) => {
-                            while let Some(frame) = decoder.decode(&mut buf)? {
-                                 self.handel_message(frame).await?;
-                                 continue;
-                            }
-                        },
-                         Err(_) => {
-                            return Err(IoError { message: "eof err".to_string() });
-                        }
+            match self.tcp_stream.read_buf(&mut buf).await {
+                Ok(read_size) => {
+                    if read_size == 0 {
+                        return return Err(IoError { message: "eof err".to_string() });
                     }
 
-                },
-
-                _ = heartbeat_ticker.tick() => {
-
-                    let req = CmppActiveTestReqPkt { seq_id };
-                    if let Err(e) = self.tcp_stream.write_all(&req.pack(seq_id).unwrap()).await {
-                       return Err(IoError { message: format!("write err: {:?}", e).to_string() });
+                    while let Some(frame) = decoder.decode(&mut buf)? {
+                        self.handel_message(frame).await?;
+                        continue;
                     }
                 }
-
-
+                Err(_) => {
+                    return Err(IoError { message: "eof err".to_string() });
+                }
             }
+
         }
 
     }
@@ -132,4 +116,6 @@ impl Conn {
             }
         }
     }
+
+
 }
