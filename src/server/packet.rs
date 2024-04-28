@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 use std::io::{Error, ErrorKind};
 
-use bytes::Buf;
+use bytes::{Buf, BufMut};
 use tokio_util::codec::{Decoder, Encoder};
 
 use crate::util::byte::{u32_to_byte_array, u64_to_byte_array};
@@ -11,6 +11,10 @@ pub const CMPP_CONNECT: u32 = 1;
 pub const CMPP_CONNECT_RESP: u32 = 2147483649;
 pub const CMPP_SUBMIT: u32 = 4;
 pub const CMPP_SUBMIT_RESP: u32 = 2147483652;
+
+pub const CMPP_ACTIVE_TEST_REQ_PKT_LEN: u32 = 12;
+
+pub const  CMPP_ACTIVE_TEST: u32= 8;
 
 pub const CMPP_HEADER_LEN: u32 = 12;
 
@@ -57,6 +61,53 @@ pub struct Packet {
     pub packer: Box<dyn Packer>,
     pub seq_id: u32,
     pub command_id: u32,
+}
+
+#[derive(Debug)]
+pub struct CmppActiveTestReqPkt {
+    // session info
+    pub(crate) seq_id: u32
+}
+
+impl Packer for CmppActiveTestReqPkt {
+
+    fn pack(&self, seq_id: u32) -> Result<Vec<u8>, Error> {
+        let mut buffer = Vec::with_capacity(12usize);
+        buffer.put_u32(12u32);
+        buffer.put_u32(CMPP_ACTIVE_TEST);
+        buffer.put_u32(seq_id);
+        Ok(buffer)
+    }
+
+    fn unpack(&mut self, data: &Vec<u8>) -> Result<(), Error> {
+        return Ok(());
+    }
+
+    fn seq_id(&self) -> u32 {
+        self.seq_id
+    }
+}
+
+#[derive(Debug)]
+pub struct CmppActiveTestRspPkt  {
+    reserved: u8,
+    // session info
+    seq_id: u32
+}
+
+impl Packer for CmppActiveTestRspPkt {
+    fn pack(&self, _seq_id: u32) -> Result<Vec<u8>, Error> {
+        let buffer = Vec::with_capacity(CMPP_CONN_REQ_PKT_LEN as usize);
+        Ok(buffer)
+    }
+
+    fn unpack(&mut self, _data: &Vec<u8>) -> Result<(), Error> {
+        return Ok(());
+    }
+
+    fn seq_id(&self) -> u32 {
+        self.seq_id
+    }
 }
 
 #[derive(Debug)]
