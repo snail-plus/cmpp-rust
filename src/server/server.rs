@@ -54,8 +54,8 @@ impl Server {
                     let handlers_clone = self.handlers.clone();
                     
                     tokio::spawn(async move {
-                        let mut conn = Conn::new(stream, handlers_clone);
-                        match conn.serve().await {
+                        let mut conn = Conn::new(handlers_clone);
+                        match conn.serve(stream).await {
                             Ok(()) => {}
                             Err(e) => {
                                 error!("serve err,exit : {:?}, addr: {}", e, client_addr.to_string())
@@ -73,8 +73,8 @@ impl Server {
         }
     }
 
-    pub fn new_conn(&self, stream: TcpStream, handlers: Handlers) ->Conn {
-         Conn::new(stream, handlers)
+    pub fn new_conn(&self,  handlers: Handlers) ->Conn {
+         Conn::new(handlers)
     }
 
 }

@@ -14,6 +14,7 @@ pub const CMPP_SUBMIT_RESP: u32 = 2147483652;
 pub const CMPP_ACTIVE_TEST_REQ_PKT_LEN: u32 = 12;
 
 pub const  CMPP_ACTIVE_TEST: u32= 8;
+pub const  CMPP_ACTIVE_TEST_RESP: u32= 2147483656;
 
 pub const CMPP_HEADER_LEN: u32 = 12;
 
@@ -29,12 +30,12 @@ pub trait Packer: Send + Debug {
 }
 
 
-pub fn unpack(command_id: u32, data: &Vec<u8>) -> Result<(Box<dyn Packer>, Box<dyn Packer>), Error> {
+pub fn unpack(command_id: u32, data: &Vec<u8>) -> Result<(Box<dyn Packer>, Option<Box<dyn Packer>>), Error> {
     match command_id {
         CMPP_CONNECT => {
             let mut pkt = CmppConnReqPkt::default();
             pkt.unpack(data)?;
-            Ok((Box::new(pkt), Box::new(Cmpp3ConnRspPkt::default())))
+            Ok((Box::new(pkt),  Some(Box::new(Cmpp3ConnRspPkt::default()))))
         }
 
         CMPP_SUBMIT => {
@@ -42,11 +43,17 @@ pub fn unpack(command_id: u32, data: &Vec<u8>) -> Result<(Box<dyn Packer>, Box<d
             pkt.unpack(data)?;
             let msg_id = pkt.msg_id;
             let seq_id = pkt.seq_id;
-            Ok((Box::new(pkt), Box::new(Cmpp3SubmitRspPkt{
+            Ok((Box::new(pkt), Some(Box::new(Cmpp3SubmitRspPkt{
                 msg_id,
                 result: 0,
                 seq_id,
-            })))
+            }))))
+        }
+
+        CMPP_ACTIVE_TEST_RESP => {
+            let mut pkt = CmppActiveTestRspPkt { reserved: 0, seq_id: 0 };
+            pkt.unpack(data)?;
+            Ok((Box::new(pkt), None))
         }
 
         _ => {
@@ -89,9 +96,9 @@ impl Packer for CmppActiveTestReqPkt {
 
 #[derive(Debug)]
 pub struct CmppActiveTestRspPkt  {
-    reserved: u8,
+    pub(crate) reserved: u8,
     // session info
-    seq_id: u32
+    pub(crate) seq_id: u32
 }
 
 impl Packer for CmppActiveTestRspPkt {
