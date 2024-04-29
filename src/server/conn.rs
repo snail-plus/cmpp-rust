@@ -131,8 +131,10 @@ impl Conn {
             interval.tick().await;
             // 在这里，我们只是简单地发送心跳数据。在实际应用中，你可能需要处理接收到的消息
             let pkt = CmppActiveTestReqPkt { seq_id: 0 };
-            tx.send(pkt.pack(c).unwrap()).await.expect("TODO: panic message");
-            info!("Heartbeat sent");
+            if let Err(e) = tx.send(pkt.pack(c).unwrap()).await {
+                error!("send heartbeat error: {:?}", e);
+                continue
+            }
         }
     }
 
