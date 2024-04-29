@@ -145,8 +145,10 @@ impl Conn {
             }
 
             if let Err(e) = wr.write_all(&msg).await {
-                return;
+                error!("send heartbeat error: {:?}", e);
+                continue;
             }
         }
     }
+
 }
