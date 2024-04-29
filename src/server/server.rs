@@ -18,10 +18,11 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{mpsc, Mutex, oneshot};
 use tokio::sync::mpsc::Sender;
 use tokio::time::sleep;
-use crate::server::packet::{Packer};
 
+use crate::server::packet::Packer;
 use crate::util::time::format_date;
-use super::{Config, IoError, CmppHandler, CmppLoginHandler, Cmpp3SubmitHandler, Conn};
+
+use super::{Cmpp3SubmitHandler, CmppHandler, CmppLoginHandler, Config, Conn, Handlers, IoError};
 
 #[allow(dead_code)]
 const MAX_SIZE: usize = 2048;
@@ -35,7 +36,7 @@ pub struct Server {
 
 impl Server {
     pub async fn new(cfg: Config) -> io::Result<Server> {
-        let mut handlers: Vec<Arc<RwLock<dyn CmppHandler>>> = Vec::new();
+        let mut handlers: Handlers = Vec::new();
         handlers.push(Arc::new(RwLock::new(CmppLoginHandler {})));
         handlers.push(Arc::new(RwLock::new(Cmpp3SubmitHandler {})));
         let svr = Server { counter: Arc::new(Mutex::new(0)), cfg, handlers};
@@ -72,7 +73,7 @@ impl Server {
         }
     }
 
-    pub fn new_conn(&self, stream: TcpStream, handlers: Vec<Arc<RwLock<dyn CmppHandler>>>) ->Conn {
+    pub fn new_conn(&self, stream: TcpStream, handlers: Handlers) ->Conn {
          Conn::new(stream, handlers)
     }
 

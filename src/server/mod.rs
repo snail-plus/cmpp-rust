@@ -7,6 +7,7 @@ mod error;
 mod codec;
 
 
+use std::sync::{Arc, RwLock};
 pub use self::config::{Config};
 pub use self::error::IoError;
 pub use self::handler::CmppHandler;
@@ -14,3 +15,4 @@ pub use self::handler::{CmppLoginHandler, Cmpp3SubmitHandler};
 pub use self::conn::{Conn};
 pub use self::codec::{CmppMessage, CmppDecoder, CmppEncoder};
 
+pub type Handlers = Vec<Arc<RwLock<dyn CmppHandler>>>;

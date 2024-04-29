@@ -2,7 +2,6 @@ use std::fmt::Debug;
 use std::io::{Error, ErrorKind};
 
 use bytes::{Buf, BufMut};
-use tokio_util::codec::{Decoder, Encoder};
 
 use crate::util::byte::{u32_to_byte_array, u64_to_byte_array};
 use crate::util::str::{oct_string, octet_string, ucs2_to_utf8};

@@ -1,19 +1,21 @@
-use std::{io, task};
 use std::io::Error;
 use std::ops::DerefMut;
 use std::sync::{Arc, Mutex, RwLock};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::task::{Poll, Wake, Waker};
 use std::time::Duration;
+
 use log::{error, info};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use serde_json::error::Category::Io;
+use tokio::{io, time};
+use tokio::io::{AsyncReadExt, AsyncWriteExt, ReadHalf, WriteHalf};
 use tokio::net::TcpStream;
 use tokio::sync::mpsc;
+use tokio::sync::mpsc::Receiver;
 use tokio::sync::mpsc::Sender;
-use tokio::time;
 use tokio::time::interval;
 use tokio_util::codec::{Decoder, Framed};
-use crate::server::{CmppDecoder, CmppEncoder, CmppHandler, CmppMessage, IoError};
+
+use crate::server::{CmppDecoder, CmppEncoder, CmppHandler, CmppMessage, Handlers, IoError};
 use crate::server::packet::{CmppActiveTestReqPkt, Packer, Packet, unpack};
 
 const CMPP_HEADER_LEN: u32 = 12;
@@ -22,28 +24,31 @@ const CMPP2_PACKET_MIN: u32 = 12;
 const CMPP3_PACKET_MAX: u32 = 3335;
 const CMPP3_PACKET_MIN: u32 = 12;
 
-pub type Handlers = Vec<Arc<RwLock<dyn CmppHandler>>>;
 
-const COUNTER: AtomicUsize = AtomicUsize::new(0);
+
+static COUNTER: AtomicUsize = AtomicUsize::new(0);
 
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(30);
 
-struct MyWaker {}
-
-impl Wake for MyWaker {
-    fn wake(self: Arc<Self>) {}
-}
 
 pub struct Conn {
-    pub tcp_stream: TcpStream,
     pub handlers: Handlers,
+    rd: ReadHalf<TcpStream>,
+    wr: WriteHalf<TcpStream>,
+    tx: Sender<Vec<u8>>,
+    rx: Receiver<Vec<u8>>,
 }
 
 impl Conn {
     pub fn new(stream: TcpStream, handlers: Handlers) -> Self {
+        let (tx, mut rx) = mpsc::channel::<Vec<u8>>(32);
+        let (mut rd, mut wr) = io::split(stream);
         Conn {
-            tcp_stream: stream,
             handlers,
+            rd,
+            wr,
+            tx,
+            rx
         }
     }
 
@@ -52,7 +57,7 @@ impl Conn {
         let mut decoder = CmppDecoder::default();
 
         loop {
-            match self.tcp_stream.read_buf(&mut buf).await {
+            match self.rd.read_buf(&mut buf).await {
                 Ok(read_size) => {
                     if read_size == 0 {
                         return return Err(IoError { message: "eof err".to_string() });
@@ -73,10 +78,8 @@ impl Conn {
     }
 
     async fn handel_message(&mut self, msg: CmppMessage) -> Result<(), IoError> {
-        COUNTER.fetch_add(1, Ordering::Relaxed);
+        let msg_count = COUNTER.fetch_add(1, Ordering::Relaxed);
         let (mut req_packer, res_packer) = unpack(msg.command_id, &msg.body_data)?;
-
-        let msg_count = COUNTER.load(Ordering::Relaxed);
         info!("receive packer res: {:?}, msg count: {}", req_packer, msg_count);
 
         let seq_id = req_packer.seq_id();
@@ -103,18 +106,15 @@ impl Conn {
 
         info!("write res: {:?}", res_packet.packer);
         let write_bytes = res_packet.packer.pack(seq_id)?;
-        self.finish_packet(&write_bytes).await
+        self.send_packet(write_bytes).await
     }
 
-    async fn finish_packet(&mut self, res_bytes: &Vec<u8>) -> Result<(), IoError> {
-        match self.tcp_stream.write_all(&res_bytes).await {
-            Ok(_) => {
-                Ok(())
-            }
-            Err(e) => {
-                return Err(IoError { message: format!("write err: {:?}", e).to_string() });
-            }
+    async fn send_packet(&mut self, res_bytes: Vec<u8>) -> Result<(), IoError> {
+        if let Err(e) = self.wr.write_all(&res_bytes).await {
+            error!("flush err: {:?}", e)
         }
+
+        Ok(())
     }
 
 

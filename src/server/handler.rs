@@ -1,5 +1,5 @@
 use crate::server::IoError;
-use crate::server::packet::{CMPP_ACTIVE_TEST, CMPP_CONNECT, CMPP_SUBMIT, Packet};
+use crate::server::packet::{CMPP_CONNECT, CMPP_SUBMIT, Packet};
 
 pub trait CmppHandler: Send + Sync {
 

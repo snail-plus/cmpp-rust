@@ -1,5 +1,4 @@
 use std::string::FromUtf16Error;
-use bytes::Buf;
 
 pub fn octet_string(s: String, fixed_length: usize) -> String {
     let length = s.len();
