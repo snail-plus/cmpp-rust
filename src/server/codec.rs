@@ -39,6 +39,7 @@ impl Decoder for CmppDecoder {
         }
 
         let mut cursor = Cursor::new(&buf);
+        let pos = cursor.position();
         let total_length = cursor.get_u32();
         let command_id = cursor.get_u32();
 
@@ -49,7 +50,7 @@ impl Decoder for CmppDecoder {
             //
             // We reserve more space in the buffer. This is not strictly
             // necessary, but is a good idea performance-wise.
-
+            cursor.set_position(pos);
             // reset position
             // We inform the Framed that we need more bytes to form the next
             // frame.
@@ -59,7 +60,6 @@ impl Decoder for CmppDecoder {
         let mut body_buf = vec![0u8; body_length];
         cursor.copy_to_slice(&mut body_buf);
         buf.advance(8 + body_length);
-
 
         Ok(Some(CmppMessage{
             total_length,

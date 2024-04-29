@@ -44,7 +44,7 @@ impl Conn {
     pub async fn serve(&mut self, stream: TcpStream) -> Result<(), IoError> {
         let mut buf = bytes::BytesMut::new();
         let mut decoder = CmppDecoder::default();
-        let (mut rd, mut wr) = io::split(stream);
+        let (mut rd, wr) = io::split(stream);
         let (tx, rx) = mpsc::channel::<Vec<u8>>(32);
 
         let tx1 = tx.clone();
@@ -63,8 +63,7 @@ impl Conn {
             match rd.read_buf(&mut buf).await {
                 Ok(read_size) => {
                     if read_size == 0 {
-                        return return Err(IoError { message: "eof err".to_string() });;
-                        ;
+                        return return Err(IoError { message: "eof err".to_string() });
                     }
 
                     while let Some(frame) = decoder.decode(&mut buf)? {
@@ -115,7 +114,7 @@ impl Conn {
         info!("write res: {:?}", res_packet.packer);
         let write_bytes = res_packet.packer.pack(seq_id)?;
         if let Err(e) = tx.send(write_bytes).await {
-            return Err(IoError { message: "".to_string() });
+            return Err(IoError { message: format!("send err: {:?}", e) });
         }
 
         Ok(())
@@ -132,7 +131,7 @@ impl Conn {
             // 在这里，我们只是简单地发送心跳数据。在实际应用中，你可能需要处理接收到的消息
             let pkt = CmppActiveTestReqPkt { seq_id: 0 };
             if let Err(e) = tx.send(pkt.pack(c).unwrap()).await {
-                error!("send heartbeat error: {:?}", e);
+                error!("send heartbeat error: {}", e.to_string());
                 continue
             }
         }
