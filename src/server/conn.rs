@@ -59,6 +59,7 @@ impl Conn {
             match rd.read_buf(&mut buf).await {
                 Ok(read_size) => {
                     if read_size == 0 {
+                        drop(tx);
                         return Err(IoError { message: "eof err".to_string() });
                     }
 
@@ -73,6 +74,7 @@ impl Conn {
                 }
             }
         }
+
     }
 
     async fn handel_message(&mut self, msg: CmppMessage, tx: Sender<Vec<u8>>) -> Result<(), IoError> {
@@ -146,4 +148,9 @@ impl Conn {
             }
         }
     }
+
+    async fn deliver_msg_report(mut wr: WriteHalf<TcpStream>, mut rx: Receiver<Vec<u8>>) {
+
+    }
+
 }

@@ -13,14 +13,17 @@ pub const CMPP_SUBMIT_RESP: u32 = 2147483652;
 
 pub const CMPP_ACTIVE_TEST_REQ_PKT_LEN: u32 = 12;
 
-pub const  CMPP_ACTIVE_TEST: u32= 8;
-pub const  CMPP_ACTIVE_TEST_RESP: u32= 2147483656;
+pub const CMPP_ACTIVE_TEST: u32 = 8;
+pub const CMPP_ACTIVE_TEST_RESP: u32 = 2147483656;
 
 pub const CMPP_HEADER_LEN: u32 = 12;
 
 const CMPP_CONN_REQ_PKT_LEN: u32 = 4 + 4 + 4 + 6 + 16 + 1 + 4;
 //39d, 0x27
 const CMPP3CONN_RSP_PKT_LEN: u32 = 4 + 4 + 4 + 4 + 16 + 1;    //33d, 0x21
+
+const CMPP_DELIVER: u32 = 5;
+const CMPP_DELIVER_RESP: u32 = 2147483653;
 
 pub trait Packer: Send + Debug {
     fn pack(&self, seq_id: u32) -> Result<Vec<u8>, Error>;
@@ -35,7 +38,7 @@ pub fn unpack(command_id: u32, data: &Vec<u8>) -> Result<(Box<dyn Packer>, Optio
         CMPP_CONNECT => {
             let mut pkt = CmppConnReqPkt::default();
             pkt.unpack(data)?;
-            Ok((Box::new(pkt),  Some(Box::new(Cmpp3ConnRspPkt::default()))))
+            Ok((Box::new(pkt), Some(Box::new(Cmpp3ConnRspPkt::default()))))
         }
 
         CMPP_SUBMIT => {
@@ -43,7 +46,7 @@ pub fn unpack(command_id: u32, data: &Vec<u8>) -> Result<(Box<dyn Packer>, Optio
             pkt.unpack(data)?;
             let msg_id = pkt.msg_id;
             let seq_id = pkt.seq_id;
-            Ok((Box::new(pkt), Some(Box::new(Cmpp3SubmitRspPkt{
+            Ok((Box::new(pkt), Some(Box::new(Cmpp3SubmitRspPkt {
                 msg_id,
                 result: 0,
                 seq_id,
@@ -72,11 +75,10 @@ pub struct Packet {
 #[derive(Debug)]
 pub struct CmppActiveTestReqPkt {
     // session info
-    pub(crate) seq_id: u32
+    pub(crate) seq_id: u32,
 }
 
 impl Packer for CmppActiveTestReqPkt {
-
     fn pack(&self, seq_id: u32) -> Result<Vec<u8>, Error> {
         let mut buffer = Vec::with_capacity(12usize);
         buffer.put_u32(12u32);
@@ -95,10 +97,10 @@ impl Packer for CmppActiveTestReqPkt {
 }
 
 #[derive(Debug)]
-pub struct CmppActiveTestRspPkt  {
+pub struct CmppActiveTestRspPkt {
     pub(crate) reserved: u8,
     // session info
-    pub(crate) seq_id: u32
+    pub(crate) seq_id: u32,
 }
 
 impl Packer for CmppActiveTestRspPkt {
@@ -363,7 +365,7 @@ impl Packer for Cmpp3SubmitReqPkt {
 }
 
 #[derive(Debug)]
-pub struct Cmpp3SubmitRspPkt  {
+pub struct Cmpp3SubmitRspPkt {
     msg_id: u64,
     result: u32,
 
@@ -394,4 +396,58 @@ impl Packer for Cmpp3SubmitRspPkt {
     fn seq_id(&self) -> u32 {
         self.seq_id
     }
+}
+
+#[derive(Debug)]
+pub struct Cmpp3DeliverReqPkt {
+    msg_id: u64,
+    dest_id: String,
+    service_id: String,
+    tp_pid: u8,
+    tp_udhi: u8,
+    msg_fmt: u8,
+    src_terminal_id: String,
+    src_terminal_type: u8,
+    register_delivery: u8,
+    msg_length: u8,
+    msg_content: String,
+    link_id: String,
+
+    //session info
+    seq_id: u32,
+}
+
+impl Packer for Cmpp3DeliverReqPkt {
+    fn pack(&self, seq_id: u32) -> Result<Vec<u8>, Error> {
+        let pkt_len = CMPP_HEADER_LEN + 77 + self.msg_length as u32 + 20u32;
+        let mut buffer = Vec::with_capacity(pkt_len as usize);
+
+        buffer.put_u32(pkt_len);
+        buffer.put_u32(CMPP_DELIVER);
+        buffer.put_u32(seq_id);
+
+        buffer.put_u64(self.msg_id);
+        buffer.put_slice(octet_string(self.dest_id.clone(), 21).as_bytes());
+        buffer.put_slice(octet_string(self.service_id.clone(), 10).as_bytes());
+        buffer.put_u8(self.tp_pid);
+        buffer.put_u8(self.tp_udhi);
+        buffer.put_u8(self.msg_fmt);
+        buffer.put_slice(octet_string(self.src_terminal_id.clone(), 32).as_bytes());
+        buffer.put_u8(self.src_terminal_type);
+        buffer.put_u8(self.register_delivery);
+        buffer.put_u8(self.msg_length);
+        buffer.put_slice(self.msg_content.clone().as_bytes());
+        buffer.put_slice(octet_string(self.link_id.clone(), 20).as_bytes());
+
+        Ok(buffer)
+    }
+
+    fn unpack(&mut self, _data: &Vec<u8>) -> Result<(), Error> {
+        Ok(())
+    }
+
+    fn seq_id(&self) -> u32 {
+        self.seq_id
+    }
+
 }

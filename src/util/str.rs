@@ -11,7 +11,7 @@ pub fn octet_string(s: String, fixed_length: usize) -> String {
         return String::from(truncated);
     }
 
-    let binding = " ".repeat(fixed_length - length);
+    let binding = "\0".repeat(fixed_length - length);
     let padding = binding.as_str();
     s + padding
 }
