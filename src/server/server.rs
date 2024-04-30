@@ -1,35 +1,20 @@
-use std::collections::HashMap;
-use std::fmt::Debug;
-use std::future::Future;
-use std::io::Error;
 use std::net::SocketAddr;
 use std::str::FromStr;
 use std::sync::{Arc, RwLock};
-use std::task::ready;
-use std::time;
 use std::time::Duration;
-use std::vec::Drain;
 
-use chrono::Local;
-use log::{debug, error, info};
+use log::{error, info};
 use tokio::io;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::{mpsc, Mutex, oneshot};
-use tokio::sync::mpsc::Sender;
+use tokio::net::{TcpListener};
 use tokio::time::sleep;
 
-use crate::server::packet::Packer;
-use crate::util::time::format_date;
-
-use super::{Cmpp3SubmitHandler, CmppHandler, CmppLoginHandler, Config, Conn, Handlers, IoError};
+use super::{Cmpp3SubmitHandler, CmppHandler, CmppLoginHandler, Config, Conn, Handlers};
 
 #[allow(dead_code)]
 const MAX_SIZE: usize = 2048;
 
 
 pub struct Server {
-    counter: Arc<Mutex<i32>>,
     cfg: Config,
     handlers: Vec<Arc<RwLock<dyn CmppHandler>>>
 }
@@ -39,7 +24,7 @@ impl Server {
         let mut handlers: Handlers = Vec::new();
         handlers.push(Arc::new(RwLock::new(CmppLoginHandler {})));
         handlers.push(Arc::new(RwLock::new(Cmpp3SubmitHandler {})));
-        let svr = Server { counter: Arc::new(Mutex::new(0)), cfg, handlers};
+        let svr = Server {cfg, handlers};
         Ok(svr)
     }
 

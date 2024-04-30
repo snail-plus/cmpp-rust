@@ -1,28 +1,22 @@
-use std::io::Error;
-use std::ops::DerefMut;
-use std::sync::{Arc, Mutex, RwLock};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 use log::{error, info};
-use serde_json::error::Category::Io;
 use tokio::{io, time};
-use tokio::io::{AsyncReadExt, AsyncWriteExt, ReadHalf, WriteHalf};
+use tokio::io::{AsyncReadExt, AsyncWriteExt, WriteHalf};
 use tokio::net::TcpStream;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::Receiver;
 use tokio::sync::mpsc::Sender;
-use tokio::time::{interval, Interval};
-use tokio_util::codec::{Decoder, Framed};
+use tokio_util::codec::{Decoder};
 
-use crate::server::{CmppDecoder, CmppEncoder, CmppHandler, CmppMessage, Handlers, IoError};
-use crate::server::packet::{CmppActiveTestReqPkt, CmppActiveTestRspPkt, Packer, Packet, unpack};
+use crate::server::{CmppDecoder, CmppMessage, Handlers, IoError};
+use crate::server::packet::{CmppActiveTestReqPkt, Packer, Packet, unpack};
 
 const CMPP_HEADER_LEN: u32 = 12;
 const CMPP2_PACKET_MAX: u32 = 2477;
 const CMPP2_PACKET_MIN: u32 = 12;
 const CMPP3_PACKET_MAX: u32 = 3335;
-const CMPP3_PACKET_MIN: u32 = 12;
 
 
 static COUNTER: AtomicUsize = AtomicUsize::new(0);
@@ -32,12 +26,14 @@ const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(30);
 
 pub struct Conn {
     pub handlers: Handlers,
+    seq_id: AtomicUsize
 }
 
 impl Conn {
     pub fn new(handlers: Handlers) -> Self {
         Conn {
             handlers,
+            seq_id: AtomicUsize::new(0),
         }
     }
 
@@ -63,7 +59,7 @@ impl Conn {
             match rd.read_buf(&mut buf).await {
                 Ok(read_size) => {
                     if read_size == 0 {
-                        return return Err(IoError { message: "eof err".to_string() });
+                        return Err(IoError { message: "eof err".to_string() });
                     }
 
                     while let Some(frame) = decoder.decode(&mut buf)? {
@@ -81,9 +77,9 @@ impl Conn {
 
     async fn handel_message(&mut self, msg: CmppMessage, tx: Sender<Vec<u8>>) -> Result<(), IoError> {
         let msg_count = COUNTER.fetch_add(1, Ordering::Relaxed);
-        let (mut req_packer, res) = unpack(msg.command_id, &msg.body_data)?;
+        let (req_packer, res) = unpack(msg.command_id, &msg.body_data)?;
         if res.is_none() {
-            return Ok(())
+            return Ok(());
         }
 
         let res_packer = res.unwrap();
@@ -121,7 +117,7 @@ impl Conn {
     }
 
 
-    async fn heartbeat_task(mut tx: Sender<Vec<u8>>) {
+    async fn heartbeat_task(tx: Sender<Vec<u8>>) {
         let mut interval = time::interval(HEARTBEAT_INTERVAL);
         let mut c = 0;
         // 设置心跳定时器
@@ -131,8 +127,9 @@ impl Conn {
             // 在这里，我们只是简单地发送心跳数据。在实际应用中，你可能需要处理接收到的消息
             let pkt = CmppActiveTestReqPkt { seq_id: 0 };
             if let Err(e) = tx.send(pkt.pack(c).unwrap()).await {
-                error!("send heartbeat error: {}", e.to_string());
-                continue
+                let err_str = e.to_string();
+                error!("send heartbeat error: {}", err_str);
+                return;
             }
         }
     }
@@ -149,5 +146,4 @@ impl Conn {
             }
         }
     }
-
 }
