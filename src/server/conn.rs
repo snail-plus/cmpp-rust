@@ -10,7 +10,9 @@ use tokio::sync::mpsc::Receiver;
 use tokio::sync::mpsc::Sender;
 use tokio_util::codec::{Decoder};
 
+use crate::server::Result;
 use crate::server::{CmppDecoder, CmppMessage, Handlers, IoError};
+use crate::server::cmd::Command;
 use crate::server::packet::{CmppActiveTestReqPkt, Packer, Packet, unpack};
 
 const CMPP_HEADER_LEN: u32 = 12;
@@ -37,47 +39,41 @@ impl Conn {
         }
     }
 
-    pub async fn serve(&mut self, stream: TcpStream) -> Result<(), IoError> {
+    pub async fn serve(&mut self, stream: TcpStream) -> Result<()> {
         let mut buf = bytes::BytesMut::new();
         let mut decoder = CmppDecoder::default();
-        let (mut rd, wr) = io::split(stream);
-        let (tx, rx) = mpsc::channel::<Vec<u8>>(32);
-
-        let tx1 = tx.clone();
+        let (mut rd, mut wr) = io::split(stream);
+        let (msg_tx, mut msg_rx) = mpsc::channel::<Command>(32);
 
 
-        tokio::spawn(async {
-            Conn::heartbeat_task(tx1).await;
+        tokio::spawn(async move {
+            while let Some(message) = msg_rx.recv().await {
+                info!("GOT = {:?}", message);
+            }
         });
-
-        tokio::spawn(async {
-            Conn::flush_task(wr, rx).await;
-        });
-
 
         loop {
             match rd.read_buf(&mut buf).await {
                 Ok(read_size) => {
                     if read_size == 0 {
-                        drop(tx);
-                        return Err(IoError { message: "eof err".to_string() });
+                        return Err("EOF error".into());
                     }
 
-                    while let Some(frame) = decoder.decode(&mut buf)? {
-                        let tx2 = tx.clone();
-                        self.handel_message(frame, tx2).await?;
-                        continue;
+                    while let Some(mut frame) = decoder.decode(&mut buf)? {
+                        let tx = msg_tx.clone();
+                        let command = Command::parse_frame(frame.command_id, &mut frame.body_data)?;
+                        command.apply(tx, &mut wr).await?
                     }
                 }
-                Err(_) => {
-                    return Err(IoError { message: "eof err".to_string() });
+                Err(e) => {
+                    return Err(format!("{:?}", e).into());
                 }
             }
         }
 
     }
 
-    async fn handel_message(&mut self, msg: CmppMessage, tx: Sender<Vec<u8>>) -> Result<(), IoError> {
+    /*async fn handel_message(&mut self, msg: CmppMessage, tx: Sender<Vec<u8>>) -> Result<(), IoError> {
         let msg_count = COUNTER.fetch_add(1, Ordering::Relaxed);
         let (req_packer, res) = unpack(msg.command_id, &msg.body_data)?;
         if res.is_none() {
@@ -117,7 +113,7 @@ impl Conn {
 
         Ok(())
     }
-
+*/
 
     async fn heartbeat_task(tx: Sender<Vec<u8>>) {
         let mut interval = time::interval(HEARTBEAT_INTERVAL);
