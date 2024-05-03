@@ -1,57 +1,73 @@
-use std::net::SocketAddr;
+use std::future::Future;
+use std::net::{Shutdown, SocketAddr};
 use std::str::FromStr;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
-
+use crate::server::Result;
 use log::{error, info};
-use tokio::io;
-use tokio::net::{TcpListener};
+use tokio::{io, time};
+use tokio::net::{TcpListener, TcpStream};
+use tokio::sync::broadcast;
 use tokio::time::sleep;
-
 use super::{Config, Conn};
-
-#[allow(dead_code)]
-const MAX_SIZE: usize = 2048;
 
 
 pub struct Server {
     cfg: Config,
+    listener: TcpListener,
 }
 
 impl Server {
     pub async fn new(cfg: Config) -> io::Result<Server> {
-        let svr = Server {cfg};
+        let addr = SocketAddr::from_str(&cfg.addr).unwrap();
+        let listener = TcpListener::bind(addr).await.unwrap();
+        let svr = Server { cfg, listener };
         Ok(svr)
     }
 
-    pub async fn listen_and_serve(&mut self) {
-        let addr = SocketAddr::from_str(&self.cfg.addr).unwrap();
-        let tcp = TcpListener::bind(addr).await.unwrap();
-        info!("start server, addr: {}, target_addr: {}", &self.cfg.addr, &self.cfg.target_addr);
+    async fn accept(&mut self) -> Result<TcpStream> {
+        let mut backoff = 1;
+
+        // Try to accept a few times
         loop {
-            match tcp.accept().await {
-                Ok((stream, client_addr)) => {
-                    info!("accept client: {}", client_addr.to_string());
-
-                    tokio::spawn(async move {
-                        let mut conn = Conn::new();
-                        match conn.serve(stream).await {
-                            Ok(()) => {}
-                            Err(e) => {
-                                error!("serve err,exit : {:?}, addr: {}", e, client_addr.to_string())
-                            }
-                        }
-                    });
-                },
-
-                Err(e) => {
-                    info!("couldn't get client: {:?}", e);
-                    let d = Duration::new(1, 0);
-                    sleep(d).await;
+            // Perform the accept operation. If a socket is successfully
+            // accepted, return it. Otherwise, save the error.
+            match self.listener.accept().await {
+                Ok((socket, _)) => return Ok(socket),
+                Err(err) => {
+                    if backoff > 64 {
+                        // Accept has failed too many times. Return the error.
+                        return Err(err.into());
+                    }
                 }
             }
+
+            // Pause execution until the back off period elapses.
+            time::sleep(Duration::from_secs(backoff)).await;
+
+            // Double the back off
+            backoff *= 2;
         }
     }
-    
 
+    pub async fn run(&mut self) -> Result<()> {
+        info!("start server, addr: {}", &self.cfg.addr);
+
+        loop {
+            let socket = self.accept().await?;
+            let client_addr = socket.peer_addr().unwrap().to_string();
+            info!("accept client: {}", client_addr.to_string());
+
+            tokio::spawn(async move {
+                let mut conn = Conn::new();
+                match conn.serve(socket).await {
+                    Ok(()) => {}
+                    Err(e) => {
+                        error!("serve err,exit : {:?}, addr: {}", e, client_addr.to_string())
+                    }
+                }
+            });
+
+        }
+    }
 }
