@@ -45,11 +45,10 @@ impl Conn {
     }
 
     pub async fn serve(&mut self, stream: TcpStream) -> Result<()> {
-        let mut buf = bytes::BytesMut::new();
         let mut decoder = CmppDecoder::default();
         let (mut rd, mut wr) = io::split(stream);
         let (msg_tx, mut msg_rx) = mpsc::channel::<Command>(32);
-
+        let i = self.interval.clone();
 
         tokio::spawn(async move {
             while let Some(message) = msg_rx.recv().await {
@@ -64,7 +63,8 @@ impl Conn {
                         return Err("EOF error".into());
                     }
 
-                    while let Some(mut frame) = decoder.decode(&mut buf)? {
+                    while let Some(mut frame) = decoder.decode(&mut self.buf)? {
+                        i.lock().unwrap().reset();
                         let tx = msg_tx.clone();
                         let command = Command::parse_frame(frame.command_id, &mut frame.body_data)?;
                         command.apply(tx, &mut wr).await?
@@ -78,47 +78,6 @@ impl Conn {
 
     }
 
-    /*async fn handel_message(&mut self, msg: CmppMessage, tx: Sender<Vec<u8>>) -> Result<(), IoError> {
-        let msg_count = COUNTER.fetch_add(1, Ordering::Relaxed);
-        let (req_packer, res) = unpack(msg.command_id, &msg.body_data)?;
-        if res.is_none() {
-            return Ok(());
-        }
-
-        let res_packer = res.unwrap();
-        info!("receive packer res: {:?}, msg count: {}", req_packer, msg_count);
-
-        let seq_id = req_packer.seq_id();
-        let req_packet = Packet {
-            packer: req_packer,
-            seq_id,
-            command_id: msg.command_id,
-        };
-
-        let mut res_packet = Packet {
-            packer: res_packer,
-            seq_id,
-            command_id: msg.command_id,
-        };
-
-
-        for h in &self.handlers {
-            let rg = h.read().unwrap();
-            if rg.support(msg.command_id) {
-                rg.handle(&req_packet, &mut res_packet)?;
-                break;
-            }
-        }
-
-        info!("write res: {:?}", res_packet.packer);
-        let write_bytes = res_packet.packer.pack(seq_id)?;
-        if let Err(e) = tx.send(write_bytes).await {
-            return Err(IoError { message: format!("send err: {:?}", e) });
-        }
-
-        Ok(())
-    }
-*/
 
     async fn heartbeat_task(&self, tx: Sender<Vec<u8>>) {
         let mut interval = self.interval.clone();
@@ -150,7 +109,7 @@ impl Conn {
         }
     }
 
-    async fn deliver_msg_report(mut wr: WriteHalf<TcpStream>, mut rx: Receiver<Vec<u8>>) {
+    async fn deliver_msg_report() {
 
     }
 
