@@ -48,13 +48,8 @@ impl Conn {
         let mut decoder = CmppDecoder::default();
         let (mut rd, mut wr) = io::split(stream);
         let (msg_tx, mut msg_rx) = mpsc::channel::<Command>(32);
-        let i = self.interval.clone();
 
-        tokio::spawn(async move {
-            while let Some(message) = msg_rx.recv().await {
-                info!("GOT = {:?}", message);
-            }
-        });
+        self.handle_msg(msg_rx);
 
         loop {
             match rd.read_buf(&mut self.buf).await {
@@ -64,18 +59,33 @@ impl Conn {
                     }
 
                     while let Some(mut frame) = decoder.decode(&mut self.buf)? {
-                        i.lock().unwrap().reset();
                         let tx = msg_tx.clone();
                         let command = Command::parse_frame(frame.command_id, &mut frame.body_data)?;
                         command.apply(tx, &mut wr).await?
                     }
                 }
                 Err(e) => {
+                    drop(msg_tx);
                     return Err(format!("{:?}", e).into());
                 }
             }
         }
 
+    }
+
+    fn handle_msg(&self, mut msg_rx: Receiver<Command>) {
+        tokio::spawn(async move {
+            while let Some(cmd) = msg_rx.recv().await {
+                info!("GOT = {:?}", cmd);
+                match cmd {
+                    Command::Connect(_) => {}
+                    Command::Submit(_) => {
+                        // 投递状态报告
+                    },
+                    Command::Unknown(_) => {}
+                }
+            }
+        });
     }
 
 
@@ -92,19 +102,6 @@ impl Conn {
                 let err_str = e.to_string();
                 error!("send heartbeat error: {}", err_str);
                 return;
-            }
-        }
-    }
-
-    async fn flush_task(mut wr: WriteHalf<TcpStream>, mut rx: Receiver<Vec<u8>>) {
-        while let Some(msg) = rx.recv().await {
-            if msg.len() == 0 {
-                return;
-            }
-
-            if let Err(e) = wr.write_all(&msg).await {
-                error!("send heartbeat error: {:?}", e);
-                continue;
             }
         }
     }
