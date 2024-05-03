@@ -1,6 +1,6 @@
 use std::env;
-use hello::server::Config;
-use hello::server::server::Server;
+use cmpp::server::Config;
+use cmpp::server::server::Server;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

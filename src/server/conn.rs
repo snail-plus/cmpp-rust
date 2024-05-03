@@ -1,4 +1,5 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use log::{error, info};
@@ -8,12 +9,13 @@ use tokio::net::TcpStream;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::Receiver;
 use tokio::sync::mpsc::Sender;
-use tokio_util::codec::{Decoder};
+use tokio::time::Interval;
+use tokio_util::codec::Decoder;
 
-use crate::server::Result;
-use crate::server::{CmppDecoder, CmppMessage, Handlers, IoError};
+use crate::server::{CmppDecoder};
+use crate::server::cmd::active::CmppActiveTestReqPkt;
 use crate::server::cmd::Command;
-use crate::server::packet::{CmppActiveTestReqPkt, Packer, Packet, unpack};
+use crate::server::Result;
 
 const CMPP_HEADER_LEN: u32 = 12;
 const CMPP2_PACKET_MAX: u32 = 2477;
@@ -27,15 +29,18 @@ const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(30);
 
 
 pub struct Conn {
-    pub handlers: Handlers,
-    seq_id: AtomicUsize
+    seq_id: AtomicUsize,
+    interval: Arc<Mutex<Interval>>,
+    buf: bytes::BytesMut,
 }
 
 impl Conn {
-    pub fn new(handlers: Handlers) -> Self {
+    pub fn new() -> Self {
+        let i = time::interval(HEARTBEAT_INTERVAL);
         Conn {
-            handlers,
+            interval: Arc::new(Mutex::new(i)),
             seq_id: AtomicUsize::new(0),
+            buf: bytes::BytesMut::new(),
         }
     }
 
@@ -53,7 +58,7 @@ impl Conn {
         });
 
         loop {
-            match rd.read_buf(&mut buf).await {
+            match rd.read_buf(&mut self.buf).await {
                 Ok(read_size) => {
                     if read_size == 0 {
                         return Err("EOF error".into());
@@ -115,13 +120,13 @@ impl Conn {
     }
 */
 
-    async fn heartbeat_task(tx: Sender<Vec<u8>>) {
-        let mut interval = time::interval(HEARTBEAT_INTERVAL);
+    async fn heartbeat_task(&self, tx: Sender<Vec<u8>>) {
+        let mut interval = self.interval.clone();
         let mut c = 0;
         // 设置心跳定时器
         loop {
             c += 1;
-            interval.tick().await;
+            interval.lock().unwrap().tick().await;
             // 在这里，我们只是简单地发送心跳数据。在实际应用中，你可能需要处理接收到的消息
             let pkt = CmppActiveTestReqPkt { seq_id: 0 };
             if let Err(e) = tx.send(pkt.pack(c).unwrap()).await {

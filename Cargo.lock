@@ -155,6 +155,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "cmpp"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "chrono",
+ "env_logger",
+ "log",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "tokio",
+ "tokio-util",
+]
+
+[[package]]
 name = "colorchoice"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -206,21 +221,6 @@ name = "gimli"
 version = "0.28.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4271d37baee1b8c7e4b708028c57d816cf9d2434acb33a549475f78c181f6253"
-
-[[package]]
-name = "hello"
-version = "0.1.0"
-dependencies = [
- "bytes",
- "chrono",
- "env_logger",
- "log",
- "serde",
- "serde_derive",
- "serde_json",
- "tokio",
- "tokio-util",
-]
 
 [[package]]
 name = "hermit-abi"

@@ -9,6 +9,8 @@ use crate::server::Result;
 mod connect;
 mod unknown;
 mod submit;
+mod deliver;
+pub mod active;
 
 pub const CMPP_CONNECT: u32 = 1;
 pub const CMPP_CONNECT_RESP: u32 = 2147483649;

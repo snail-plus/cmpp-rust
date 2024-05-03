@@ -1,13 +1,12 @@
 use std::io;
+
 use bytes::BufMut;
 use tokio::io::{AsyncWriteExt, WriteHalf};
 use tokio::net::TcpStream;
-use crate::server::cmd::{CMPP3CONN_RSP_PKT_LEN, CMPP_HEADER_LEN, CMPP_SUBMIT_RESP};
-use crate::server::packet::CMPP_CONNECT_RESP;
-use crate::server::Result;
-use crate::util::byte::u32_to_byte_array;
-use crate::util::str::octet_string;
 
+use crate::server::cmd::{CMPP3CONN_RSP_PKT_LEN, CMPP_CONNECT_RESP};
+use crate::server::Result;
+use crate::util::str::octet_string;
 
 #[derive(Debug, Clone)]
 pub struct CmppConnReqPkt {
@@ -66,13 +65,13 @@ impl Cmpp3ConnRspPkt {
     fn pack(self) -> Result<Vec<u8>> {
         // pack header
         let mut buffer = Vec::with_capacity(CMPP3CONN_RSP_PKT_LEN as usize);
-        buffer.extend_from_slice(&u32_to_byte_array(CMPP3CONN_RSP_PKT_LEN));
-        buffer.extend_from_slice(&u32_to_byte_array(CMPP_CONNECT_RESP));
-        buffer.extend_from_slice(&u32_to_byte_array(self.seq_id));
+        buffer.put_u32(CMPP3CONN_RSP_PKT_LEN);
+        buffer.put_u32(CMPP_CONNECT_RESP);
+        buffer.put_u32(self.seq_id);
 
         // pack body
         // Status
-        buffer.extend_from_slice(&u32_to_byte_array(self.status));
+        buffer.put_u32(self.status);
 
         // auth_msg
         let auth_src = octet_string(String::new(), 16);

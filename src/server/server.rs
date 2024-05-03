@@ -8,7 +8,7 @@ use tokio::io;
 use tokio::net::{TcpListener};
 use tokio::time::sleep;
 
-use super::{Cmpp3SubmitHandler, CmppHandler, CmppLoginHandler, Config, Conn, Handlers};
+use super::{Config, Conn};
 
 #[allow(dead_code)]
 const MAX_SIZE: usize = 2048;
@@ -16,15 +16,11 @@ const MAX_SIZE: usize = 2048;
 
 pub struct Server {
     cfg: Config,
-    handlers: Vec<Arc<RwLock<dyn CmppHandler>>>
 }
 
 impl Server {
     pub async fn new(cfg: Config) -> io::Result<Server> {
-        let mut handlers: Handlers = Vec::new();
-        handlers.push(Arc::new(RwLock::new(CmppLoginHandler {})));
-        handlers.push(Arc::new(RwLock::new(Cmpp3SubmitHandler {})));
-        let svr = Server {cfg, handlers};
+        let svr = Server {cfg};
         Ok(svr)
     }
 
@@ -36,10 +32,9 @@ impl Server {
             match tcp.accept().await {
                 Ok((stream, client_addr)) => {
                     info!("accept client: {}", client_addr.to_string());
-                    let handlers_clone = self.handlers.clone();
-                    
+
                     tokio::spawn(async move {
-                        let mut conn = Conn::new(handlers_clone);
+                        let mut conn = Conn::new();
                         match conn.serve(stream).await {
                             Ok(()) => {}
                             Err(e) => {
@@ -57,9 +52,6 @@ impl Server {
             }
         }
     }
-
-    pub fn new_conn(&self,  handlers: Handlers) ->Conn {
-         Conn::new(handlers)
-    }
+    
 
 }
