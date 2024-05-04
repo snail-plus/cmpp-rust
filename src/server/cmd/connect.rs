@@ -1,10 +1,7 @@
-use std::io;
-
 use bytes::BufMut;
-use tokio::io::{AsyncWriteExt, WriteHalf};
-use tokio::net::TcpStream;
+use tokio::sync::mpsc::Sender;
 
-use crate::server::cmd::{CMPP3CONN_RSP_PKT_LEN, CMPP_CONNECT_RESP};
+use crate::server::cmd::{CMPP3CONN_RSP_PKT_LEN, CMPP_CONNECT_RESP, Command};
 use crate::server::Result;
 use crate::util::str::octet_string;
 
@@ -31,12 +28,12 @@ impl CmppConnReqPkt {
         }
     }
 
-    pub(crate) fn parse_frame(data: &mut Vec<u8>) -> Result<CmppConnReqPkt>{
+    pub(crate) fn parse_frame(_data: &mut Vec<u8>) -> Result<CmppConnReqPkt>{
         let pkt = CmppConnReqPkt::new();
         Ok(pkt)
     }
 
-    pub(crate) async fn apply(&self, wh: &mut WriteHalf<TcpStream>) -> io::Result<()> {
+    pub(crate) async fn apply(&self, tx_out: Sender<Command>) {
         let res = Cmpp3ConnRspPkt{
             status: 0,
             auth_ismg: "".to_string(),
@@ -45,8 +42,7 @@ impl CmppConnReqPkt {
             auth_src: "".to_string(),
             seq_id: self.seq_id,
         };
-        wh.write_all(res.pack().unwrap().as_slice()).await?;
-        wh.flush().await
+        let _ = tx_out.send(Command::ConnectRsp(res));
     }
 
 }

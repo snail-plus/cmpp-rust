@@ -1,10 +1,9 @@
-use std::io;
 use bytes::{Buf, BufMut};
-use tokio::io::{AsyncWriteExt, WriteHalf};
-use tokio::net::TcpStream;
-use crate::server::cmd::{CMPP_HEADER_LEN, CMPP_SUBMIT_RESP};
-use crate::util::str::{oct_string, ucs2_to_utf8};
+use tokio::sync::mpsc::Sender;
+
+use crate::server::cmd::{CMPP_HEADER_LEN, CMPP_SUBMIT_RESP, Command};
 use crate::server::Result;
+use crate::util::str::{oct_string, ucs2_to_utf8};
 
 #[derive(Debug, Clone)]
 pub struct Cmpp3SubmitReqPkt {
@@ -149,14 +148,13 @@ impl Cmpp3SubmitReqPkt {
         Ok(pkt)
     }
 
-    pub(crate) async fn apply(&self, wh: &mut WriteHalf<TcpStream>) -> io::Result<()> {
+    pub(crate) async fn apply(&self, tx_out: Sender<Command>) {
         let res = Cmpp3SubmitRspPkt{
             msg_id: self.msg_id,
             result: 0,
             seq_id: self.seq_id,
         };
-        wh.write_all(res.pack().unwrap().as_slice()).await?;
-        wh.flush().await
+        let _= tx_out.send(Command::SubmitRsp(res));
     }
 
 }

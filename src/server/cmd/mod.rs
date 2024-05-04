@@ -1,7 +1,7 @@
-use tokio::io::{AsyncWriteExt, WriteHalf};
-use tokio::net::TcpStream;
 use tokio::sync::mpsc::Sender;
-use crate::server::cmd::connect::CmppConnReqPkt;
+use crate::server::cmd::active::CmppActiveTestReqPkt;
+use crate::server::cmd::connect::{Cmpp3ConnRspPkt, CmppConnReqPkt};
+use crate::server::cmd::deliver::Cmpp3DeliverReqPkt;
 use crate::server::cmd::submit::{Cmpp3SubmitReqPkt, Cmpp3SubmitRspPkt};
 use crate::server::cmd::unknown::Unknown;
 use crate::server::Result;
@@ -9,7 +9,7 @@ use crate::server::Result;
 mod connect;
 mod unknown;
 mod submit;
-mod deliver;
+pub mod deliver;
 pub mod active;
 
 pub const CMPP_CONNECT: u32 = 1;
@@ -35,7 +35,11 @@ const CMPP_DELIVER_RESP: u32 = 2147483653;
 #[derive(Debug, Clone)]
 pub enum Command {
     Connect(CmppConnReqPkt),
+    ConnectRsp(Cmpp3ConnRspPkt),
     Submit(Cmpp3SubmitReqPkt),
+    SubmitRsp(Cmpp3SubmitRspPkt),
+    Deliver(Cmpp3DeliverReqPkt),
+    ActiveTest(CmppActiveTestReqPkt),
     Unknown(Unknown),
 }
 
@@ -53,16 +57,25 @@ impl Command {
         Ok(command)
     }
 
-    pub(crate) async fn apply(self, tx: Sender<Command>, wh: &mut WriteHalf<TcpStream>) -> Result<()> {
+    pub fn into_frame(self) -> Result<Vec<u8>> {
+        match self {
+            Command::Connect(_) => {Ok(vec![])}
+            Command::Submit(_) => {Ok(vec![])}
+            Command::Unknown(_) => {Ok(vec![])}
+            _ => {Ok(vec![])}
+        }
+    }
+
+    pub(crate) async fn apply(self, tx_in: Sender<Command>, tx_out: Sender<Command>) -> Result<()> {
         match self {
             Command::Connect(ref cmd) => {
-                cmd.apply(wh).await?;
+                cmd.apply(tx_out).await;
             }
             Command::Submit(ref cmd) => {
-                cmd.apply(wh).await?;
-                tx.send(self).await?
+                cmd.apply(tx_out).await;
+                tx_in.send(self).await?
             }
-            Command::Unknown(cmd) => {}
+            _ => {}
         }
         Ok(())
     }

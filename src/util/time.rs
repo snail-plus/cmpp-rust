@@ -33,6 +33,7 @@ pub fn format_date(date: DateTime<Local>, format: &str) -> String {
     return formatted_local;
 }
 
+#[deprecated]
 #[inline]
 fn get_timestamp_in_seconds() -> u64 {
     // 获取当前的系统时间

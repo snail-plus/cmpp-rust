@@ -5,21 +5,21 @@ use crate::util::str::octet_string;
 
 #[derive(Debug, Clone)]
 pub struct Cmpp3DeliverReqPkt {
-    msg_id: u64,
-    dest_id: String,
-    service_id: String,
-    tp_pid: u8,
-    tp_udhi: u8,
-    msg_fmt: u8,
-    src_terminal_id: String,
-    src_terminal_type: u8,
-    register_delivery: u8,
-    msg_length: u8,
-    msg_content: String,
-    link_id: String,
+    pub msg_id: u64,
+    pub dest_id: String,
+    pub service_id: String,
+    pub tp_pid: u8,
+    pub tp_udhi: u8,
+    pub msg_fmt: u8,
+    pub src_terminal_id: String,
+    pub src_terminal_type: u8,
+    pub register_delivery: u8,
+    pub msg_length: u8,
+    pub msg_content: String,
+    pub link_id: String,
 
     //session info
-    seq_id: u32,
+    pub seq_id: u32,
 }
 
 impl Cmpp3DeliverReqPkt {
