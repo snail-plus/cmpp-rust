@@ -1,4 +1,5 @@
 use bytes::{Buf, BufMut};
+use log::error;
 use tokio::sync::mpsc::Sender;
 
 use crate::server::cmd::{CMPP_HEADER_LEN, CMPP_SUBMIT_RESP, Command};
@@ -29,11 +30,11 @@ pub struct Cmpp3SubmitReqPkt {
     pub dest_terminal_id: Vec<String>,
     pub dest_terminal_type: u8,
     msg_length: u8,
-    msg_content: String,
-    link_id: String,
+    pub msg_content: String,
+    pub link_id: String,
 
     // session info
-    seq_id: u32,
+    pub seq_id: u32,
 }
 
 
@@ -154,7 +155,9 @@ impl Cmpp3SubmitReqPkt {
             result: 0,
             seq_id: self.seq_id,
         };
-        let _= tx_out.send(Command::SubmitRsp(res));
+        if let Err(e) = tx_out.send(Command::SubmitRsp(res)).await  {
+            error!("send submit rsp err: {:?}", e)
+        }
     }
 
 }

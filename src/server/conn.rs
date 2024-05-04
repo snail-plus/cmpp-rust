@@ -32,7 +32,7 @@ impl Conn {
     pub async fn serve(&self, stream: TcpStream) -> Result<()> {
 
         let mut decoder = CmppDecoder::default();
-        let mut buf = BytesMut::new();
+        let mut buf = BytesMut::with_capacity(4 * 1024);
         let (mut reader, writer) = io::split(stream);
 
         let (out_tx, out_rx) = mpsc::channel::<Command>(256);
@@ -83,10 +83,14 @@ impl MsgInHandler {
             info!("IN = {:?}", cmd);
             match cmd {
                 Command::Connect(_) => {}
-                Command::Submit(_) => {
+                Command::Submit(submit) => {
                     // 投递状态报告
-                    let pkt = Cmpp3DeliverReqPkt::new();
-                    let _ = self.out_tx.send(Command::Deliver(pkt)).await;
+                    let mut pkt = Cmpp3DeliverReqPkt::new();
+                    pkt.seq_id = submit.seq_id;
+                    pkt.msg_id = submit.msg_id;
+                    if let Err(e) = self.out_tx.send(Command::Deliver(pkt)).await {
+                        error!("send deliver err: {:?}", e)
+                    }
                 }
                 _ => {}
             }
@@ -106,6 +110,10 @@ impl MsgOutHandler {
             info!("OUT = {:?}", cmd);
             match cmd.into_frame() {
                 Ok(res) => {
+                    if res.len() == 0 {
+                        continue
+                    }
+
                     if let Err(e) = self.wr.write_all(&res).await {
                         error!("write err: {:?}", e);
                         return;

@@ -1,5 +1,6 @@
 use std::io;
 use std::io::Cursor;
+use log::info;
 
 use tokio_util::bytes::{Buf, BufMut, BytesMut};
 use tokio_util::codec::{Decoder, Encoder};
@@ -33,6 +34,7 @@ impl Decoder for CmppDecoder {
     type Error = io::Error;
 
     fn decode(&mut self, buf: &mut BytesMut) -> Result<Option<CmppMessage>, Self::Error> {
+
         if buf.len() < CMPP_CONN_REQ_PKT_LEN as usize {
             // Not enough data to read length marker.
             return Ok(None);

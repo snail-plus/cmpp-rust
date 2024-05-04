@@ -61,6 +61,7 @@ impl Command {
         match self {
             Command::ConnectRsp(res) => res.pack(),
             Command::SubmitRsp(res) => res.pack(),
+            Command::Deliver(res) => res.pack(),
             _ => {Ok(vec![])}
         }
     }

@@ -1,4 +1,5 @@
 use bytes::BufMut;
+use log::{error, info};
 use tokio::sync::mpsc::Sender;
 
 use crate::server::cmd::{CMPP3CONN_RSP_PKT_LEN, CMPP_CONNECT_RESP, Command};
@@ -42,7 +43,9 @@ impl CmppConnReqPkt {
             auth_src: "".to_string(),
             seq_id: self.seq_id,
         };
-        let _ = tx_out.send(Command::ConnectRsp(res));
+        if let Err(e) = tx_out.send(Command::ConnectRsp(res)).await {
+            error!("send connect rsp err: {:?}", e)
+        }
     }
 
 }

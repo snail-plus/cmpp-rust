@@ -42,13 +42,13 @@ impl Cmpp3DeliverReqPkt {
         }
     }
 
-    pub fn pack(&self, seq_id: u32) -> Result<Vec<u8>> {
+    pub fn pack(&self) -> Result<Vec<u8>> {
         let pkt_len = CMPP_HEADER_LEN + 77 + self.msg_length as u32 + 20u32;
         let mut buffer = Vec::with_capacity(pkt_len as usize);
 
         buffer.put_u32(pkt_len);
         buffer.put_u32(CMPP_DELIVER);
-        buffer.put_u32(seq_id);
+        buffer.put_u32(self.seq_id);
 
         buffer.put_u64(self.msg_id);
         buffer.put_slice(octet_string(self.dest_id.clone(), 21).as_bytes());
