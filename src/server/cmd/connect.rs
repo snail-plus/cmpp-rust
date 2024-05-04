@@ -49,16 +49,16 @@ impl CmppConnReqPkt {
 
 #[derive(Debug, Clone)]
 pub struct Cmpp3ConnRspPkt {
-    status: u32,
-    auth_ismg: String,
-    version: u8,
-    secret: String,
-    auth_src: String,
-    seq_id: u32,
+    pub status: u32,
+    pub auth_ismg: String,
+    pub version: u8,
+    pub secret: String,
+    pub auth_src: String,
+    pub seq_id: u32,
 }
 
 impl Cmpp3ConnRspPkt {
-    fn pack(self) -> Result<Vec<u8>> {
+    pub fn pack(self) -> Result<Vec<u8>> {
         // pack header
         let mut buffer = Vec::with_capacity(CMPP3CONN_RSP_PKT_LEN as usize);
         buffer.put_u32(CMPP3CONN_RSP_PKT_LEN);

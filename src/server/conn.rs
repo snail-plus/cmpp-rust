@@ -1,4 +1,3 @@
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use bytes::BytesMut;
@@ -14,7 +13,6 @@ use tokio::time::Interval;
 use tokio_util::codec::Decoder;
 
 use crate::server::{CmppDecoder};
-use crate::server::cmd::active::CmppActiveTestReqPkt;
 use crate::server::cmd::Command;
 use crate::server::cmd::deliver::Cmpp3DeliverReqPkt;
 use crate::server::Result;
@@ -24,17 +22,14 @@ const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(30);
 
 
 pub struct Conn {
-    seq_id: AtomicUsize,
     interval: Arc<Mutex<Interval>>,
 }
 
 impl Conn {
     pub fn new() -> Conn {
-
         let i = time::interval(HEARTBEAT_INTERVAL);
         Conn {
             interval: Arc::new(Mutex::new(i)),
-            seq_id: AtomicUsize::new(0),
         }
 
     }
@@ -42,18 +37,19 @@ impl Conn {
     pub async fn serve(&self, stream: TcpStream) -> Result<()> {
         let mut decoder = CmppDecoder::default();
         let mut buf = BytesMut::with_capacity(1024);
-        let (mut rd, mut wr) = io::split(stream);
+        let (mut rd, wr) = io::split(stream);
 
         let (out_tx, out_rx) = mpsc::channel::<Command>(256);
         let (in_tx, in_rx) = mpsc::channel::<Command>(256);
 
-        let out_tx1 = out_tx.clone();
-        tokio::spawn(async {
-            Conn::handle_msg(in_rx, out_tx1).await;
+        let in_handler = MsgInHandler{ in_rx, out_tx: out_tx.clone()};
+        tokio::spawn(async move {
+            in_handler.run().await;
         });
 
-        tokio::spawn(async move{
-            Conn::write_msg(out_rx, &mut wr).await;
+        let out_handler = MsgOutHandler{ out_rx, wr};
+        tokio::spawn(async move {
+            out_handler.run().await;
         });
 
         info!("buf cap: {}", buf.capacity());
@@ -80,34 +76,48 @@ impl Conn {
         }
     }
 
+}
 
+struct MsgInHandler {
+    in_rx: Receiver<Command>,
+    out_tx: Sender<Command>
+}
 
-    async fn handle_msg(mut in_rx: Receiver<Command>, out_tx: Sender<Command>) {
-        while let Some(cmd) = in_rx.recv().await {
+impl MsgInHandler {
+    async fn run(mut self) {
+        while let Some(cmd) = self.in_rx.recv().await {
             info!("IN = {:?}", cmd);
             match cmd {
                 Command::Connect(_) => {}
                 Command::Submit(_) => {
                     // 投递状态报告
                     let pkt = Cmpp3DeliverReqPkt::new();
-                    let _ = out_tx.send(Command::Deliver(pkt)).await;
+                    let _ = self.out_tx.send(Command::Deliver(pkt)).await;
                 }
                 _ => {}
             }
         }
     }
+}
 
-    async fn write_msg(mut out_rx: Receiver<Command>, wh: &mut WriteHalf<TcpStream>) {
-        while let Some(cmd) = out_rx.recv().await {
+
+struct MsgOutHandler {
+    out_rx: Receiver<Command>,
+    wr: WriteHalf<TcpStream>,
+}
+
+impl MsgOutHandler {
+    async fn run(mut self) {
+        while let Some(cmd) = self.out_rx.recv().await {
             info!("OUT = {:?}", cmd);
             match cmd.into_frame() {
                 Ok(res) => {
-                    if let Err(e) = wh.write_all(&res).await {
+                    if let Err(e) = self.wr.write_all(&res).await {
                         error!("write err: {:?}", e);
                         return;
                     }
 
-                    if let Err(e) = wh.flush().await {
+                    if let Err(e) = self.wr.flush().await {
                         error!("flush err: {:?}", e);
                     }
                 }
@@ -118,26 +128,4 @@ impl Conn {
         }
     }
 
-    fn get_seq_id(&self) -> u32 {
-        self.seq_id.fetch_add(1, Ordering::Relaxed) as u32
-    }
-
-    async fn heartbeat_task(&self, tx: Sender<Command>) {
-        let interval = self.interval.clone();
-        // 设置心跳定时器
-        loop {
-            interval.lock().unwrap().tick().await;
-            let seq_id = self.get_seq_id();
-            // 在这里，我们只是简单地发送心跳数据。在实际应用中，你可能需要处理接收到的消息
-            let pkt = CmppActiveTestReqPkt { seq_id};
-            let cmd = Command::ActiveTest(pkt);
-            if let Err(e) = tx.send(cmd).await {
-                let err_str = e.to_string();
-                error!("send heartbeat error: {}", err_str);
-                return;
-            }
-        }
-    }
-
-    async fn deliver_msg_report() {}
 }

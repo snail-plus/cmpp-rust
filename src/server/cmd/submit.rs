@@ -170,7 +170,7 @@ pub struct Cmpp3SubmitRspPkt {
 
 impl  Cmpp3SubmitRspPkt {
 
-    fn pack(self) -> Result<Vec<u8>> {
+    pub(crate) fn pack(self) -> Result<Vec<u8>> {
         let pkt_len = CMPP_HEADER_LEN + 8 + 4;
         let mut buffer = Vec::with_capacity(pkt_len as usize);
         // Pack header

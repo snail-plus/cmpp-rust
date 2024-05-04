@@ -59,9 +59,8 @@ impl Command {
 
     pub fn into_frame(self) -> Result<Vec<u8>> {
         match self {
-            Command::Connect(_) => {Ok(vec![])}
-            Command::Submit(_) => {Ok(vec![])}
-            Command::Unknown(_) => {Ok(vec![])}
+            Command::ConnectRsp(res) => res.pack(),
+            Command::SubmitRsp(res) => res.pack(),
             _ => {Ok(vec![])}
         }
     }
