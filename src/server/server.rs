@@ -54,8 +54,9 @@ impl Server {
             let client_addr = socket.peer_addr().unwrap().to_string();
             info!("accept client: {}", client_addr.to_string());
 
+            let conn = Conn::new();
+
             tokio::spawn(async move {
-                let conn = Conn::new();
                 match conn.serve(socket).await {
                     Ok(()) => {}
                     Err(e) => {

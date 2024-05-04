@@ -1,5 +1,5 @@
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use bytes::BytesMut;
 
 use log::{error, info};
@@ -22,32 +22,28 @@ const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(30);
 
 
 pub struct Conn {
-    interval: Arc<Mutex<Interval>>,
 }
 
 impl Conn {
     pub fn new() -> Conn {
-        let i = time::interval(HEARTBEAT_INTERVAL);
-        Conn {
-            interval: Arc::new(Mutex::new(i)),
-        }
-
+        Conn{}
     }
 
     pub async fn serve(&self, stream: TcpStream) -> Result<()> {
+
         let mut decoder = CmppDecoder::default();
-        let mut buf = BytesMut::with_capacity(1024);
-        let (mut rd, wr) = io::split(stream);
+        let mut buf = BytesMut::new();
+        let (mut reader, writer) = io::split(stream);
 
         let (out_tx, out_rx) = mpsc::channel::<Command>(256);
         let (in_tx, in_rx) = mpsc::channel::<Command>(256);
 
-        let in_handler = MsgInHandler{ in_rx, out_tx: out_tx.clone()};
+        let in_handler = MsgInHandler { in_rx, out_tx: out_tx.clone() };
         tokio::spawn(async move {
             in_handler.run().await;
         });
 
-        let out_handler = MsgOutHandler{ out_rx, wr};
+        let out_handler = MsgOutHandler { out_rx, wr: writer };
         tokio::spawn(async move {
             out_handler.run().await;
         });
@@ -55,14 +51,13 @@ impl Conn {
         info!("buf cap: {}", buf.capacity());
 
         loop {
-            match rd.read_buf(&mut buf).await {
+            match reader.read_buf(&mut buf).await {
                 Ok(read_size) => {
                     if read_size == 0 {
-                       return Err("eof".into());
+                        return Err("eof".into());
                     }
 
                     while let Some(mut frame) = decoder.decode(&mut buf)? {
-                        self.interval.lock().unwrap().reset();
                         let in_tx = in_tx.clone();
                         let out_tx = out_tx.clone();
                         let command = Command::parse_frame(frame.command_id, &mut frame.body_data)?;
@@ -75,12 +70,11 @@ impl Conn {
             }
         }
     }
-
 }
 
 struct MsgInHandler {
     in_rx: Receiver<Command>,
-    out_tx: Sender<Command>
+    out_tx: Sender<Command>,
 }
 
 impl MsgInHandler {
@@ -127,5 +121,36 @@ impl MsgOutHandler {
             }
         }
     }
+}
 
+
+struct IdleHandler {
+    last_activity_time: Mutex<Instant>,
+}
+
+impl IdleHandler {
+    fn update_last_activity_time(&self) {
+        let now = Instant::now();
+        *self.last_activity_time.lock().unwrap() = now;
+    }
+
+    // 检查连接是否空闲
+    async fn is_idle(&self, idle_timeout: Duration) -> bool {
+        let now = Instant::now();
+        let last_activity_time = *self.last_activity_time.lock().unwrap();
+        now.duration_since(last_activity_time) > idle_timeout
+    }
+
+    // 启动一个定时器来检查空闲状态
+    pub async fn start_idle_check(&self, interval: Duration, idle_timeout: Duration) {
+        loop {
+            time::interval(interval).tick().await;
+            if self.is_idle(idle_timeout).await {
+                // 处理空闲连接，例如关闭连接或发送心跳
+                info!("Connection is idle, closing it...");
+                // ... 关闭连接的代码 ...
+                break;
+            }
+        }
+    }
 }
