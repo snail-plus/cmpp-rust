@@ -1,11 +1,11 @@
 use std::io;
 use std::io::Cursor;
-use log::info;
 
 use tokio_util::bytes::{Buf, BufMut, BytesMut};
 use tokio_util::codec::{Decoder, Encoder};
 
-const CMPP_CONN_REQ_PKT_LEN:  u32 = 4 + 4 + 4 + 6 + 16 + 1 + 4;
+const CMPP3_PACKET_MAX: u32 = 3335;
+const CMPP3_PACKET_MIN: u32 = 12;
 
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct CmppMessage {
@@ -35,7 +35,7 @@ impl Decoder for CmppDecoder {
 
     fn decode(&mut self, buf: &mut BytesMut) -> Result<Option<CmppMessage>, Self::Error> {
 
-        if buf.len() < CMPP_CONN_REQ_PKT_LEN as usize {
+        if buf.len() < 8usize {
             // Not enough data to read length marker.
             return Ok(None);
         }

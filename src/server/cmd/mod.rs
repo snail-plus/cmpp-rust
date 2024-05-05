@@ -73,7 +73,7 @@ impl Command {
             }
             Command::Submit(ref cmd) => {
                 cmd.apply(tx_out).await;
-                tx_in.send(self).await?
+                tx_in.send(self).await?;
             }
             _ => {}
         }

@@ -32,7 +32,7 @@ impl Conn {
     pub async fn serve(&self, stream: TcpStream) -> Result<()> {
 
         let mut decoder = CmppDecoder::default();
-        let mut buf = BytesMut::with_capacity(4 * 1024);
+        let mut buf = BytesMut::with_capacity(1024);
         let (mut reader, writer) = io::split(stream);
 
         let (out_tx, out_rx) = mpsc::channel::<Command>(256);
