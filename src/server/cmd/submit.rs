@@ -1,5 +1,7 @@
 use bytes::{Buf, BufMut};
 use log::error;
+use tokio::io::{AsyncWriteExt, WriteHalf};
+use tokio::net::TcpStream;
 use tokio::sync::mpsc::Sender;
 
 use crate::server::cmd::{CMPP_HEADER_LEN, CMPP_SUBMIT_RESP, Command};
@@ -149,14 +151,20 @@ impl Cmpp3SubmitReqPkt {
         Ok(pkt)
     }
 
-    pub(crate) async fn apply(&self, tx_out: Sender<Command>) {
+    pub(crate) async fn apply(&self, w: &mut WriteHalf<TcpStream>) {
         let res = Cmpp3SubmitRspPkt{
             msg_id: self.msg_id,
             result: 0,
             seq_id: self.seq_id,
         };
-        if let Err(e) = tx_out.send(Command::SubmitRsp(res)).await  {
-            error!("send submit rsp err: {:?}", e)
+
+        if let Err(e) = w.write_all(&res.pack().unwrap()).await  {
+            error!("send submit rsp err: {:?}", e);
+            return;
+        }
+
+        if let Err(e) = w.flush().await {
+            error!("flush err: {:?}", e);
         }
     }
 

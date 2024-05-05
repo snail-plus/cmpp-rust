@@ -33,20 +33,8 @@ impl Conn {
 
         let mut decoder = CmppDecoder::default();
         let mut buf = BytesMut::with_capacity(1024);
-        let (mut reader, writer) = io::split(stream);
+        let (mut reader, mut writer) = io::split(stream);
 
-        let (out_tx, out_rx) = mpsc::channel::<Command>(256);
-        let (in_tx, in_rx) = mpsc::channel::<Command>(256);
-
-        let in_handler = MsgInHandler { in_rx, out_tx: out_tx.clone() };
-        tokio::spawn(async move {
-            in_handler.run().await;
-        });
-
-        let out_handler = MsgOutHandler { out_rx, wr: writer };
-        tokio::spawn(async move {
-            out_handler.run().await;
-        });
 
         info!("buf cap: {}", buf.capacity());
 
@@ -58,10 +46,8 @@ impl Conn {
                     }
 
                     while let Some(mut frame) = decoder.decode(&mut buf)? {
-                        let in_tx = in_tx.clone();
-                        let out_tx = out_tx.clone();
                         let command = Command::parse_frame(frame.command_id, &mut frame.body_data)?;
-                        command.apply(in_tx, out_tx).await?
+                        command.apply(&mut writer).await?
                     }
                 }
                 Err(e) => {

@@ -1,4 +1,6 @@
-use tokio::sync::mpsc::Sender;
+use tokio::io::WriteHalf;
+use tokio::net::TcpStream;
+
 use crate::server::cmd::active::CmppActiveTestReqPkt;
 use crate::server::cmd::connect::{Cmpp3ConnRspPkt, CmppConnReqPkt};
 use crate::server::cmd::deliver::Cmpp3DeliverReqPkt;
@@ -66,14 +68,13 @@ impl Command {
         }
     }
 
-    pub(crate) async fn apply(self, tx_in: Sender<Command>, tx_out: Sender<Command>) -> Result<()> {
+    pub(crate) async fn apply(self, w: &mut WriteHalf<TcpStream>) -> Result<()> {
         match self {
             Command::Connect(ref cmd) => {
-                cmd.apply(tx_out).await;
+                cmd.apply(w).await;
             }
             Command::Submit(ref cmd) => {
-                cmd.apply(tx_out).await;
-                tx_in.send(self).await?;
+                cmd.apply(w).await;
             }
             _ => {}
         }

@@ -1,5 +1,7 @@
 use bytes::BufMut;
 use log::{error, info};
+use tokio::io::{AsyncWriteExt, WriteHalf};
+use tokio::net::TcpStream;
 use tokio::sync::mpsc::Sender;
 
 use crate::server::cmd::{CMPP3CONN_RSP_PKT_LEN, CMPP_CONNECT_RESP, Command};
@@ -34,7 +36,7 @@ impl CmppConnReqPkt {
         Ok(pkt)
     }
 
-    pub(crate) async fn apply(&self, tx_out: Sender<Command>) {
+    pub(crate) async fn apply(&self, w: &mut WriteHalf<TcpStream>) {
         let res = Cmpp3ConnRspPkt{
             status: 0,
             auth_ismg: "".to_string(),
@@ -43,7 +45,7 @@ impl CmppConnReqPkt {
             auth_src: "".to_string(),
             seq_id: self.seq_id,
         };
-        if let Err(e) = tx_out.send(Command::ConnectRsp(res)).await {
+        if let Err(e) = w.write_all(&res.pack().unwrap()).await {
             error!("send connect rsp err: {:?}", e)
         }
     }
