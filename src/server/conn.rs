@@ -28,9 +28,6 @@ impl Conn {
         let mut buf = BytesMut::with_capacity(1024);
         let (mut reader, mut writer) = io::split(stream);
 
-
-        info!("buf cap: {}", buf.capacity());
-
         loop {
             match reader.read_buf(&mut buf).await {
                 Ok(read_size) => {
