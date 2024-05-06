@@ -40,7 +40,7 @@ impl Decoder for CmppDecoder {
             return Ok(None);
         }
 
-        let mut cursor = Cursor::new(&buf);
+        let mut cursor = Cursor::new(&buf[..]);
         let pos = cursor.position();
         let total_length = cursor.get_u32();
         let command_id = cursor.get_u32();

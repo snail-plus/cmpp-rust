@@ -34,8 +34,13 @@ impl Conn {
         loop {
             match reader.read_buf(&mut buf).await {
                 Ok(read_size) => {
+
                     if read_size == 0 {
-                        return Err("eof".into());
+                        return if buf.is_empty() {
+                            Ok(())
+                        } else {
+                            Err("connection reset by peer".into())
+                        }
                     }
 
                     while let Some(mut frame) = decoder.decode(&mut buf)? {

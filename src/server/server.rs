@@ -58,7 +58,9 @@ impl Server {
 
             tokio::spawn(async move {
                 match conn.serve(socket).await {
-                    Ok(()) => {}
+                    Ok(()) => {
+                        info!("client disconnect, client addr: {}", client_addr)
+                    }
                     Err(e) => {
                         error!("serve err,exit : {:?}, addr: {}", e, client_addr.to_string())
                     }
