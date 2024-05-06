@@ -1,24 +1,17 @@
-use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
-use bytes::BytesMut;
+use std::time::{Duration};
 
+use bytes::BytesMut;
 use log::{error, info};
-use tokio::{io, time};
+use tokio::{io};
 use tokio::io::{AsyncReadExt, AsyncWriteExt, WriteHalf};
 use tokio::net::TcpStream;
-use tokio::sync::mpsc;
-use tokio::sync::mpsc::Receiver;
-use tokio::sync::mpsc::Sender;
-use tokio::time::Interval;
+use tokio::sync::mpsc::{Receiver, Sender};
 use tokio_util::codec::Decoder;
 
-use crate::server::{CmppDecoder};
 use crate::server::cmd::Command;
 use crate::server::cmd::deliver::Cmpp3DeliverReqPkt;
+use crate::server::CmppDecoder;
 use crate::server::Result;
-
-
-const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(30);
 
 
 pub struct Conn {
@@ -112,38 +105,6 @@ impl MsgOutHandler {
                 Err(e) => {
                     error!("into frame err: {:?}", e)
                 }
-            }
-        }
-    }
-}
-
-
-struct IdleHandler {
-    last_activity_time: Mutex<Instant>,
-}
-
-impl IdleHandler {
-    fn update_last_activity_time(&self) {
-        let now = Instant::now();
-        *self.last_activity_time.lock().unwrap() = now;
-    }
-
-    // 检查连接是否空闲
-    async fn is_idle(&self, idle_timeout: Duration) -> bool {
-        let now = Instant::now();
-        let last_activity_time = *self.last_activity_time.lock().unwrap();
-        now.duration_since(last_activity_time) > idle_timeout
-    }
-
-    // 启动一个定时器来检查空闲状态
-    pub async fn start_idle_check(&self, interval: Duration, idle_timeout: Duration) {
-        loop {
-            time::interval(interval).tick().await;
-            if self.is_idle(idle_timeout).await {
-                // 处理空闲连接，例如关闭连接或发送心跳
-                info!("Connection is idle, closing it...");
-                // ... 关闭连接的代码 ...
-                break;
             }
         }
     }

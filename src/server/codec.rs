@@ -45,6 +45,10 @@ impl Decoder for CmppDecoder {
         let total_length = cursor.get_u32();
         let command_id = cursor.get_u32();
 
+        if total_length < CMPP3_PACKET_MIN || total_length > CMPP3_PACKET_MAX {
+            return Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid length"));
+        }
+
         let body_length = (total_length - 8) as usize;
 
         if cursor.remaining() < body_length {

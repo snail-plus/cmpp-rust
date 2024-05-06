@@ -2,9 +2,8 @@ use bytes::{Buf, BufMut};
 use log::error;
 use tokio::io::{AsyncWriteExt, WriteHalf};
 use tokio::net::TcpStream;
-use tokio::sync::mpsc::Sender;
 
-use crate::server::cmd::{CMPP_HEADER_LEN, CMPP_SUBMIT_RESP, Command};
+use crate::server::cmd::{CMPP_HEADER_LEN, CMPP_SUBMIT_RESP};
 use crate::server::Result;
 use crate::util::str::{oct_string, ucs2_to_utf8};
 
