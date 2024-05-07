@@ -3,7 +3,7 @@ use std::time::{Duration};
 use bytes::BytesMut;
 use log::{error, info};
 use tokio::{io};
-use tokio::io::{AsyncReadExt, AsyncWriteExt, WriteHalf};
+use tokio::io::{AsyncReadExt, AsyncWriteExt, ReadHalf, WriteHalf};
 use tokio::net::TcpStream;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio_util::codec::Decoder;
@@ -15,21 +15,24 @@ use crate::server::Result;
 
 
 pub struct Conn {
+    reader: ReadHalf<TcpStream>,
+    writer: WriteHalf<TcpStream>,
+    buf: BytesMut,
 }
 
 impl Conn {
-    pub fn new() -> Conn {
-        Conn{}
+    pub fn new(stream: TcpStream) -> Conn {
+        let (mut reader, mut writer) = io::split(stream);
+        let mut buf = BytesMut::with_capacity(1024);
+        Conn{reader, writer, buf}
     }
 
-    pub async fn serve(&self, stream: TcpStream) -> Result<()> {
-
+    pub async fn serve(&mut self) -> Result<()> {
         let mut decoder = CmppDecoder::default();
-        let mut buf = BytesMut::with_capacity(1024);
-        let (mut reader, mut writer) = io::split(stream);
 
         loop {
-            match reader.read_buf(&mut buf).await {
+            let buf = &mut self.buf;
+            match self.reader.read_buf(buf).await {
                 Ok(read_size) => {
 
                     if read_size == 0 {
@@ -40,9 +43,9 @@ impl Conn {
                         }
                     }
 
-                    while let Some(mut frame) = decoder.decode(&mut buf)? {
+                    while let Some(mut frame) = decoder.decode(&mut self.buf)? {
                         let command = Command::parse_frame(frame.command_id, &mut frame.body_data)?;
-                        command.apply(&mut writer).await?
+                        command.apply(&mut self.writer).await?
                     }
                 }
                 Err(e) => {

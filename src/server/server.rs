@@ -54,10 +54,10 @@ impl Server {
             let client_addr = socket.peer_addr().unwrap().to_string();
             info!("accept client: {}", client_addr.to_string());
 
-            let conn = Conn::new();
+            let mut conn = Conn::new(socket);
 
             tokio::spawn(async move {
-                match conn.serve(socket).await {
+                match conn.serve().await {
                     Ok(()) => {
                         info!("client disconnect, client addr: {}", client_addr)
                     }
