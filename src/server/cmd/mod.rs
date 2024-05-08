@@ -68,7 +68,7 @@ impl Command {
         }
     }
 
-    pub(crate) async fn apply(self, w: &mut WriteHalf<TcpStream>) -> Result<()> {
+    pub(crate) async fn apply(&mut self, w: &mut WriteHalf<TcpStream>) -> Result<()> {
         match self {
             Command::Connect(ref cmd) => {
                 cmd.apply(w).await;

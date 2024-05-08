@@ -18,39 +18,75 @@ pub struct Conn {
     reader: ReadHalf<TcpStream>,
     writer: WriteHalf<TcpStream>,
     buf: BytesMut,
+    rx: Receiver<Command>,
+    tx: Sender<Command>,
 }
 
 impl Conn {
     pub fn new(stream: TcpStream) -> Conn {
         let (mut reader, mut writer) = io::split(stream);
         let mut buf = BytesMut::with_capacity(1024);
-        Conn{reader, writer, buf}
+        let (tx, rx) = tokio::sync::mpsc::channel(1024);
+        Conn{reader, writer, buf, rx, tx}
     }
 
     pub async fn serve(&mut self) -> Result<()> {
         let mut decoder = CmppDecoder::default();
 
         loop {
-            let buf = &mut self.buf;
-            match self.reader.read_buf(buf).await {
-                Ok(read_size) => {
+            let option = self.read_frame(&mut decoder).await?;
+            let cmd = match option {
+                Some(frame) => frame,
+                None => return Ok(()),
+            };
 
-                    if read_size == 0 {
-                        return if buf.is_empty() {
-                            Ok(())
-                        } else {
-                            Err("connection reset by peer".into())
-                        }
-                    }
+            let tx = self.tx.clone();
+            if let Err(e) = tx.send(cmd).await {
+                error!("send command to server err: {:?}", e);
+                return Err("send err".into())
+            }
 
-                    while let Some(mut frame) = decoder.decode(&mut self.buf)? {
-                        let command = Command::parse_frame(frame.command_id, &mut frame.body_data)?;
-                        command.apply(&mut self.writer).await?
+            // 读取队列中的状态报告投递给客户端
+            self.deliver().await?;
+
+        }
+    }
+
+    async fn deliver(&mut self) -> Result<()> {
+        loop {
+            if let Ok(cmd) = self.rx.try_recv() {
+                let res = cmd.into_frame()?;
+                self.writer.write_all(&res).await?;
+                self.writer.flush().await?;
+            } else {
+                break;
+            }
+        }
+        Ok(())
+    }
+
+    async fn read_frame(&mut self, decoder: &mut CmppDecoder) -> Result<Option<Command>> {
+        let buf = &mut self.buf;
+        match self.reader.read_buf(buf).await {
+            Ok(read_size) => {
+                if read_size == 0 {
+                    return if buf.is_empty() {
+                        Ok(None)
+                    } else {
+                        Err("connection reset by peer".into())
                     }
                 }
-                Err(e) => {
-                    return Err(format!("{:?}", e).into());
+
+                while let Some(mut frame) = decoder.decode(&mut self.buf)? {
+                    let mut command = Command::parse_frame(frame.command_id, &mut frame.body_data)?;
+                    command.apply(&mut self.writer).await?;
+                    return Ok(Some(command));
                 }
+
+                Ok(None)
+            }
+            Err(e) => {
+                return Err(format!("{:?}", e).into());
             }
         }
     }
