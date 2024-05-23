@@ -11,6 +11,7 @@ use tokio_util::codec::Decoder;
 use crate::server::cmd::Command;
 use crate::server::cmd::deliver::Cmpp3DeliverReqPkt;
 use crate::server::CmppDecoder;
+use crate::server::handler::MsgInHandler;
 use crate::server::Result;
 
 
@@ -26,127 +27,63 @@ impl Conn {
     pub fn new(stream: TcpStream) -> Conn {
         let (mut reader, mut writer) = io::split(stream);
         let mut buf = BytesMut::with_capacity(1024);
-        let (tx, rx) = tokio::sync::mpsc::channel(1024);
-        Conn{reader, writer, buf, rx, tx}
+        let (tx_in, rx_in) = tokio::sync::mpsc::channel(1024);
+        let (tx_out, rx_out) = tokio::sync::mpsc::channel(1024);
+
+        let mut handler = MsgInHandler {
+            in_rx: rx_in,
+            out_tx: tx_out,
+        };
+        tokio::spawn(async move {
+            handler.run().await;
+        });
+
+        Conn { reader, writer, buf, rx: rx_out, tx: tx_in }
     }
 
     pub async fn serve(&mut self) -> Result<()> {
-        let mut decoder = CmppDecoder::default();
-
-        loop {
-            let option = self.read_frame(&mut decoder).await?;
-            let cmd = match option {
-                Some(frame) => frame,
-                None => return Ok(()),
-            };
-
-            let tx = self.tx.clone();
-            if let Err(e) = tx.send(cmd).await {
-                error!("send command to server err: {:?}", e);
-                return Err("send err".into())
-            }
-
-            // 读取队列中的状态报告投递给客户端
-            self.deliver().await?;
-
-        }
+        self.read_frame().await?;
+        // 读取队列中的状态报告投递给客户端
+        self.deliver().await
     }
 
     async fn deliver(&mut self) -> Result<()> {
-        loop {
-            if let Ok(cmd) = self.rx.try_recv() {
-                let res = cmd.into_frame()?;
-                self.writer.write_all(&res).await?;
-                self.writer.flush().await?;
-            } else {
-                break;
-            }
+        while let Some(cmd) = self.rx.recv().await {
+            info!("OUT={:?}", cmd);
+            let res = cmd.into_frame()?;
+            self.writer.write_all(&res).await?;
+            self.writer.flush().await?;
         }
         Ok(())
     }
 
-    async fn read_frame(&mut self, decoder: &mut CmppDecoder) -> Result<Option<Command>> {
+    async fn read_frame(&mut self) -> Result<()> {
+        let mut decoder = CmppDecoder::default();
+
         let buf = &mut self.buf;
-        match self.reader.read_buf(buf).await {
-            Ok(read_size) => {
-                if read_size == 0 {
-                    return if buf.is_empty() {
-                        Ok(None)
-                    } else {
-                        Err("connection reset by peer".into())
-                    }
-                }
-
-                while let Some(mut frame) = decoder.decode(&mut self.buf)? {
-                    let mut command = Command::parse_frame(frame.command_id, &mut frame.body_data)?;
-                    command.apply(&mut self.writer).await?;
-                    return Ok(Some(command));
-                }
-
-                Ok(None)
-            }
-            Err(e) => {
-                return Err(format!("{:?}", e).into());
-            }
-        }
-    }
-}
-
-struct MsgInHandler {
-    in_rx: Receiver<Command>,
-    out_tx: Sender<Command>,
-}
-
-impl MsgInHandler {
-    async fn run(mut self) {
-        while let Some(cmd) = self.in_rx.recv().await {
-            info!("IN = {:?}", cmd);
-            match cmd {
-                Command::Connect(_) => {}
-                Command::Submit(submit) => {
-                    // 投递状态报告
-                    let mut pkt = Cmpp3DeliverReqPkt::new();
-                    pkt.seq_id = submit.seq_id;
-                    pkt.msg_id = submit.msg_id;
-                    if let Err(e) = self.out_tx.send(Command::Deliver(pkt)).await {
-                        error!("send deliver err: {:?}", e)
-                    }
-                }
-                _ => {}
-            }
-        }
-    }
-}
-
-
-struct MsgOutHandler {
-    out_rx: Receiver<Command>,
-    wr: WriteHalf<TcpStream>,
-}
-
-impl MsgOutHandler {
-    async fn run(mut self) {
-        while let Some(cmd) = self.out_rx.recv().await {
-            info!("OUT = {:?}", cmd);
-            match cmd.into_frame() {
-                Ok(res) => {
-                    if res.len() == 0 {
-                        continue
+        loop {
+            match self.reader.read_buf(buf).await {
+                Ok(read_size) => {
+                    if read_size == 0 {
+                        return if buf.is_empty() {
+                            Ok(())
+                        } else {
+                            Err("connection reset by peer".into())
+                        };
                     }
 
-                    if let Err(e) = self.wr.write_all(&res).await {
-                        error!("write err: {:?}", e);
-                        return;
-                    }
-
-                    if let Err(e) = self.wr.flush().await {
-                        error!("flush err: {:?}", e);
+                    while let Some(mut frame) = decoder.decode(buf)? {
+                        let mut command = Command::parse_frame(frame.command_id, &mut frame.body_data)?;
+                        command.apply(&mut self.writer).await?;
+                        let sender = self.tx.clone();
+                        sender.send(command).await?;
                     }
                 }
                 Err(e) => {
-                    error!("into frame err: {:?}", e)
+                    return Err(format!("{:?}", e).into());
                 }
             }
         }
     }
 }
+

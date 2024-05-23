@@ -5,6 +5,7 @@ mod conn;
 mod error;
 mod codec;
 mod cmd;
+mod handler;
 
 pub use self::config::{Config};
 pub use self::error::IoError;
