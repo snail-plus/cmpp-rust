@@ -1,6 +1,3 @@
-use tokio::io::WriteHalf;
-use tokio::net::TcpStream;
-
 use crate::server::cmd::active::CmppActiveTestReqPkt;
 use crate::server::cmd::connect::{Cmpp3ConnRspPkt, CmppConnReqPkt};
 use crate::server::cmd::deliver::Cmpp3DeliverReqPkt;
@@ -8,7 +5,7 @@ use crate::server::cmd::submit::{Cmpp3SubmitReqPkt, Cmpp3SubmitRspPkt};
 use crate::server::cmd::unknown::Unknown;
 use crate::server::Result;
 
-mod connect;
+pub mod connect;
 mod unknown;
 mod submit;
 pub mod deliver;
@@ -68,17 +65,16 @@ impl Command {
         }
     }
 
-    pub(crate) async fn apply(&mut self, w: &mut WriteHalf<TcpStream>) -> Result<()> {
+    pub(crate) fn apply(&mut self) -> Result<Command> {
         match self {
             Command::Connect(ref cmd) => {
-                cmd.apply(w).await;
+                cmd.apply().map(|t| { Command::ConnectRsp(t) })
             }
             Command::Submit(ref cmd) => {
-                cmd.apply(w).await;
+                cmd.apply().map(|t| { Command::SubmitRsp(t) })
             }
-            _ => {}
+            _ => Ok(Command::Unknown(Unknown::new(0)))
         }
-        Ok(())
     }
 
 }

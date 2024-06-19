@@ -4,7 +4,7 @@ mod config;
 mod conn;
 mod error;
 mod codec;
-mod cmd;
+pub mod cmd;
 mod handler;
 
 pub use self::config::{Config};

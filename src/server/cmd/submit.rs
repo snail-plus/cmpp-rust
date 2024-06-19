@@ -150,21 +150,13 @@ impl Cmpp3SubmitReqPkt {
         Ok(pkt)
     }
 
-    pub(crate) async fn apply(&self, w: &mut WriteHalf<TcpStream>) {
+    pub(crate) fn apply(&self) -> Result<Cmpp3SubmitRspPkt> {
         let res = Cmpp3SubmitRspPkt{
             msg_id: self.msg_id,
             result: 0,
             seq_id: self.seq_id,
         };
-
-        if let Err(e) = w.write_all(&res.pack().unwrap()).await  {
-            error!("send submit rsp err: {:?}", e);
-            return;
-        }
-
-        if let Err(e) = w.flush().await {
-            error!("flush err: {:?}", e);
-        }
+        Ok(res)
     }
 
 }

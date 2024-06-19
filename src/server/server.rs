@@ -57,7 +57,7 @@ impl Server {
             let mut conn = Conn::new(socket);
 
             tokio::spawn(async move {
-                match conn.serve().await {
+                match conn.run().await {
                     Ok(()) => {
                         info!("client disconnect, client addr: {}", client_addr)
                     }

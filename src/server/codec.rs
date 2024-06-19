@@ -1,5 +1,6 @@
 use std::io;
 use std::io::Cursor;
+use log::info;
 
 use tokio_util::bytes::{Buf, BufMut, BytesMut};
 use tokio_util::codec::{Decoder, Encoder};
@@ -67,6 +68,7 @@ impl Decoder for CmppDecoder {
         cursor.copy_to_slice(&mut body_buf);
         buf.advance(8 + body_length);
 
+        info!("decode done");
         Ok(Some(CmppMessage{
             total_length,
             command_id,
