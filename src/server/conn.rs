@@ -1,8 +1,7 @@
 use bytes::BytesMut;
 use tokio::io;
-use tokio::io::{AsyncReadExt, ReadHalf};
+use tokio::io::{AsyncReadExt, AsyncWriteExt, ReadHalf};
 use tokio::net::TcpStream;
-use tokio::sync::mpsc::Sender;
 use tokio_util::codec::Decoder;
 
 use crate::server::{cmd, CmppDecoder};
@@ -23,61 +22,75 @@ impl AuthHandler for DefaultAUthHandler {
 }
 
 pub struct Conn {
-    reader: ReadHalf<TcpStream>,
     buf: BytesMut,
-    tx: Sender<(Command, Command)>,
     auth_handler:  Box<dyn AuthHandler>,
 }
 
 impl Conn {
-    pub fn new(stream: TcpStream) -> Conn {
-        let (reader, writer) = io::split(stream);
+    pub fn new() -> Conn {
         let buf = BytesMut::with_capacity(1024);
-        let (tx_in, rx_in) = tokio::sync::mpsc::channel(1024);
+        Conn {buf, auth_handler: Box::new(DefaultAUthHandler{}) }
+    }
 
+    pub async fn run(&mut self, stream: TcpStream) -> Result<()> {
+        let (mut reader, mut writer) = io::split(stream);
+        
+        let (tx_in, rx_in) = tokio::sync::mpsc::channel(1024);
+        let (tx_out, mut rx_out) = tokio::sync::mpsc::channel(1024);
+
+        let tx_out_sender1 = tx_out.clone();
         let mut handler = MsgInHandler {
-            writer,
             in_rx: rx_in,
+            tx_out: tx_out_sender1,
         };
         tokio::spawn(async move {
             handler.run().await;
         });
 
-        Conn { reader, buf, tx: tx_in, auth_handler: Box::new(DefaultAUthHandler{})}
-    }
+        tokio::spawn(async move {
+            while let Some(mut req) = rx_out.recv().await {
+                let _ = writer.write_all(&req.into_frame().unwrap()).await;
+                let _ = writer.flush().await;
+            }
+        });
 
-    pub async fn run(&mut self) -> Result<()> {
         loop {
-             if let Some(mut req) = self.read_frame().await? {
-                 let mut res = req.apply()?;
-                 let sender = self.tx.clone();
-                 match req {
-                     Command::Connect(ref req_c) => {
-                         match res {
-                             Command::ConnectRsp(ref mut res_c) => {
-                                 if !self.auth_handler.auth(&req_c, res_c) {
-                                     return Err("认证失败".into())
-                                 }
 
-                                 sender.send((req, res)).await?;
+             match self.read_frame(&mut reader).await? {
+                 Some(req) => {
+                     match req {
+                         Command::Connect(ref req_c) => {
+                             let mut res = req.apply()?;
+                             match res {
+                                 Command::ConnectRsp(ref mut res_c) => {
+                                     let auth_result = self.auth_handler.auth(&req_c, res_c);
+                                     let tx_out_sender2 = tx_out.clone();
+                                     tx_out_sender2.send(res).await.unwrap();
+                                     if !auth_result {
+                                         return Err("认证失败".into())
+                                     }
+                                 }
+                                 _ => {}
                              }
-                             _ => {}
+                         }
+                         _ => {
+                             let sender = tx_in.clone();
+                             sender.send(req).await?;
                          }
                      }
-                     _ => {
-                         sender.send((req, res)).await?;
-                     }
                  }
+
+                 None => {}
              }
         }
     }
 
-    async fn read_frame(&mut self) -> Result<Option<Command>> {
+    async fn read_frame(&mut self, reader: &mut ReadHalf<TcpStream>) -> Result<Option<Command>> {
         let mut decoder = CmppDecoder::default();
 
         let buf = &mut self.buf;
         loop {
-            match self.reader.read_buf(buf).await {
+            match reader.read_buf(buf).await {
                 Ok(read_size) => {
                     if read_size == 0 {
                         return if buf.is_empty() {

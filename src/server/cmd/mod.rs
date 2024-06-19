@@ -65,7 +65,7 @@ impl  Command {
         }
     }
 
-    pub(crate) fn apply(&mut self) -> Result<Command> {
+    pub(crate) fn apply(&self) -> Result<Command> {
         match self {
             Command::Connect(ref cmd) => {
                 cmd.apply().map(|t| { Command::ConnectRsp(t) })
