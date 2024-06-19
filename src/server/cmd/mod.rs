@@ -1,4 +1,4 @@
-use crate::server::cmd::active::CmppActiveTestReqPkt;
+use crate::server::cmd::active::{CmppActiveTestReqPkt, CmppActiveTestRspPkt};
 use crate::server::cmd::connect::{Cmpp3ConnRspPkt, CmppConnReqPkt};
 use crate::server::cmd::deliver::Cmpp3DeliverReqPkt;
 use crate::server::cmd::submit::{Cmpp3SubmitReqPkt, Cmpp3SubmitRspPkt};
@@ -38,11 +38,12 @@ pub enum Command {
     SubmitRsp(Cmpp3SubmitRspPkt),
     Deliver(Cmpp3DeliverReqPkt),
     ActiveTest(CmppActiveTestReqPkt),
+    ActiveTestRsp(CmppActiveTestRspPkt),
     Unknown(Unknown),
 }
 
 
-impl Command {
+impl  Command {
     pub fn parse_frame(command_id: u32, frame: &mut Vec<u8>) -> Result<Command> {
         let command = match command_id {
             CMPP_CONNECT => Command::Connect(CmppConnReqPkt::parse_frame(frame)?),
@@ -72,6 +73,11 @@ impl Command {
             Command::Submit(ref cmd) => {
                 cmd.apply().map(|t| { Command::SubmitRsp(t) })
             }
+
+            Command::ActiveTest(ref cmd) => {
+                cmd.apply().map(|t| { Command::ActiveTestRsp(t) })
+            }
+
             _ => Ok(Command::Unknown(Unknown::new(0)))
         }
     }
