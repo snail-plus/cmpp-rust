@@ -2,7 +2,7 @@
 
 #[derive(Debug, Clone)]
 pub struct Unknown {
-    command_id: u32,
+    pub command_id: u32,
 }
 
 impl Unknown {

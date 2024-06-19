@@ -1,4 +1,4 @@
-use log::info;
+use log::{info, warn};
 use tokio::sync::mpsc::{Receiver, Sender};
 
 use crate::server::cmd::Command;
@@ -20,6 +20,9 @@ impl MsgInHandler {
             match req {
                 Command::Submit(ref submit) => {
                     // TODO
+                }
+                Command::Unknown(ref u) => {
+                    warn!("known command_id {}", u.command_id)
                 }
                 _ => {}
             }
