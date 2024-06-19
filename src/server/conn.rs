@@ -1,20 +1,14 @@
-use std::sync::Arc;
-use std::time::{Duration};
-
 use bytes::BytesMut;
-use log::{error, info};
-use tokio::{io};
-use tokio::io::{AsyncReadExt, AsyncWriteExt, ReadHalf, WriteHalf};
+use tokio::io;
+use tokio::io::{AsyncReadExt, ReadHalf};
 use tokio::net::TcpStream;
-use tokio::sync::mpsc::{Sender};
+use tokio::sync::mpsc::Sender;
 use tokio_util::codec::Decoder;
-use crate::server;
 
-use crate::server::cmd::Command;
 use crate::server::{cmd, CmppDecoder};
+use crate::server::cmd::Command;
 use crate::server::handler::MsgInHandler;
 use crate::server::Result;
-
 
 pub trait  AuthHandler : Send + Sync{
     fn  auth(&self, req: &cmd::connect::CmppConnReqPkt, res: &mut cmd::connect::Cmpp3ConnRspPkt) -> bool;
@@ -37,8 +31,8 @@ pub struct Conn {
 
 impl Conn {
     pub fn new(stream: TcpStream) -> Conn {
-        let (mut reader, writer) = io::split(stream);
-        let mut buf = BytesMut::with_capacity(1024);
+        let (reader, writer) = io::split(stream);
+        let buf = BytesMut::with_capacity(1024);
         let (tx_in, rx_in) = tokio::sync::mpsc::channel(1024);
 
         let mut handler = MsgInHandler {

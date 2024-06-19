@@ -1,7 +1,7 @@
-use log::{error, info};
+use log::{info};
 use tokio::io::{AsyncWriteExt, WriteHalf};
 use tokio::net::TcpStream;
-use tokio::sync::mpsc::{Receiver, Sender};
+use tokio::sync::mpsc::{Receiver};
 use crate::server::cmd::Command;
 use crate::server::cmd::deliver::Cmpp3DeliverReqPkt;
 

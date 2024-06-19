@@ -1,6 +1,5 @@
 use std::io;
 use std::io::Cursor;
-use log::info;
 
 use tokio_util::bytes::{Buf, BufMut, BytesMut};
 use tokio_util::codec::{Decoder, Encoder};

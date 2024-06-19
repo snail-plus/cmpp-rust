@@ -23,7 +23,6 @@ pub const CMPP_ACTIVE_TEST_RESP: u32 = 2147483656;
 
 pub const CMPP_HEADER_LEN: u32 = 12;
 
-const CMPP_CONN_REQ_PKT_LEN: u32 = 4 + 4 + 4 + 6 + 16 + 1 + 4;
 //39d, 0x27
 const CMPP3CONN_RSP_PKT_LEN: u32 = 4 + 4 + 4 + 4 + 16 + 1;    //33d, 0x21
 
