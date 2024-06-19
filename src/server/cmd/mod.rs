@@ -48,6 +48,7 @@ impl  Command {
         let command = match command_id {
             CMPP_CONNECT => Command::Connect(CmppConnReqPkt::parse_frame(frame)?),
             CMPP_SUBMIT => Command::Submit(Cmpp3SubmitReqPkt::parse_frame(frame)?),
+            CMPP_ACTIVE_TEST => Command::ActiveTest(CmppActiveTestReqPkt::parse_frame(frame)?),
             _ => {
                 return Ok(Command::Unknown(Unknown::new(command_id)));
             }

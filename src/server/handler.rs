@@ -14,7 +14,7 @@ impl MsgInHandler {
     }
 
     async fn handle_msg(&mut self) {
-        while let Some(mut req) = self.in_rx.recv().await {
+        while let Some(req) = self.in_rx.recv().await {
             info!("IN = {:?}", req);
 
             match req {

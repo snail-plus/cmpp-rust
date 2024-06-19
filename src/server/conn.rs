@@ -48,7 +48,7 @@ impl Conn {
         });
 
         tokio::spawn(async move {
-            while let Some(mut req) = rx_out.recv().await {
+            while let Some(req) = rx_out.recv().await {
                 let _ = writer.write_all(&req.into_frame().unwrap()).await;
                 let _ = writer.flush().await;
             }
