@@ -54,8 +54,8 @@ impl Conn {
             }
         });
 
-        loop {
 
+        loop {
              match self.read_frame(&mut reader).await? {
                  Some(req) => {
                      match req {
@@ -79,7 +79,6 @@ impl Conn {
                          }
                      }
                  }
-
                  None => {}
              }
         }
