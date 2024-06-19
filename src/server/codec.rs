@@ -68,7 +68,6 @@ impl Decoder for CmppDecoder {
         cursor.copy_to_slice(&mut body_buf);
         buf.advance(8 + body_length);
 
-        info!("decode done");
         Ok(Some(CmppMessage{
             total_length,
             command_id,
