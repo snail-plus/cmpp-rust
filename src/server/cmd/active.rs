@@ -36,7 +36,6 @@ impl CmppActiveTestReqPkt {
 
 }
 
-#[derive(Debug, Clone)]
 pub struct CmppActiveTestRspPkt {
     reserved: u8,
     // session info
