@@ -16,8 +16,10 @@ pub trait  AuthHandler : Send + Sync{
 pub struct DefaultAUthHandler {}
 
 impl AuthHandler for DefaultAUthHandler {
-    fn auth(&self, _req: &cmd::connect::CmppConnReqPkt, _res: &mut cmd::connect::Cmpp3ConnRspPkt) -> bool {
-        true
+    fn auth(&self, _req: &cmd::connect::CmppConnReqPkt, res: &mut cmd::connect::Cmpp3ConnRspPkt) -> bool {
+        res.status = cmd::ERRNO_CONN_AUTH_FAILED as u32;
+        res.auth_ismg = "认证失败".to_string();
+        false
     }
 }
 

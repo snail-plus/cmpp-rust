@@ -30,6 +30,14 @@ const CMPP_DELIVER: u32 = 5;
 const CMPP_DELIVER_RESP: u32 = 2147483653;
 
 
+// 连接失败枚举
+pub const ERRNO_CONN_INVALID: u8 = 1;
+pub const ERRNO_CONN_INVALID_SRC_ADDR: u8 = 2;
+pub const ERRNO_CONN_AUTH_FAILED: u8 = 3;
+pub const ERRNO_CONN_VER_TOO_HIGH: u8 = 4;
+pub const ERRNO_CONN_OTHERS: u8 = 5;
+
+
 #[derive(Debug, Clone)]
 pub enum Command {
     Connect(CmppConnReqPkt),
