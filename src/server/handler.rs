@@ -22,7 +22,8 @@ impl MsgInHandler {
                     // TODO
                 }
                 Command::Unknown(ref u) => {
-                    warn!("known command_id {}", u.command_id)
+                    warn!("known command_id {}", u.command_id);
+                    continue
                 }
                 _ => {}
             }
