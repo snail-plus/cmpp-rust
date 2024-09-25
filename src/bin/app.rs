@@ -12,7 +12,7 @@ fn modify_my_struct(my_struct: &mut MyStruct, new_value: i32) {
 }
 
 fn main() {
-    env::set_var("RUST_LOG", "info");
+    unsafe { env::set_var("RUST_LOG", "info"); }
     env_logger::init();
     let foo = AtomicUsize::new(0);
     assert_eq!(foo.fetch_add(10, Ordering::SeqCst), 0);

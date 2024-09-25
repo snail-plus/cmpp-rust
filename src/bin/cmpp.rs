@@ -7,7 +7,7 @@ use tokio::{io, signal};
 
 #[tokio::main]
 async fn main() -> io::Result<()> {
-    env::set_var("RUST_LOG", "info");
+    unsafe { env::set_var("RUST_LOG", "info"); }
     env_logger::init();
     let cfg = Config::default();
     let mut srv = Server::new(cfg).await?;

@@ -33,18 +33,6 @@ pub fn format_date(date: DateTime<Local>, format: &str) -> String {
     return formatted_local;
 }
 
-#[deprecated]
-#[inline]
-fn get_timestamp_in_seconds() -> u64 {
-    // 获取当前的系统时间
-    let now = SystemTime::now();
-
-    // 计算从UNIX纪元到现在的时间差
-    let duration_since_epoch = now.duration_since(UNIX_EPOCH).unwrap();
-
-    // 将时间差转换为秒
-    duration_since_epoch.as_secs()
-}
 
 pub struct SlowTimer {
     slow_time: Duration,

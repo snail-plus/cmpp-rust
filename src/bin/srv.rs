@@ -6,7 +6,7 @@ use tokio::net::{TcpListener, TcpStream};
 
 #[tokio::main]
 async fn main() {
-    env::set_var("RUST_LOG", "info");
+    unsafe { env::set_var("RUST_LOG", "info"); }
     env_logger::init();
 
     // Bind the listener to the address

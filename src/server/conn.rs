@@ -1,7 +1,10 @@
+use std::collections::HashMap;
+use std::sync::Arc;
 use bytes::BytesMut;
 use tokio::io;
 use tokio::io::{AsyncReadExt, AsyncWriteExt, ReadHalf};
 use tokio::net::TcpStream;
+use tokio::sync::{Mutex, Semaphore};
 use tokio_util::codec::Decoder;
 
 use crate::server::{cmd, CmppDecoder};
@@ -13,9 +16,9 @@ pub trait  AuthHandler : Send + Sync{
     fn  auth(&self, req: &cmd::connect::CmppConnReqPkt, res: &mut cmd::connect::Cmpp3ConnRspPkt) -> bool;
 }
 
-pub struct DefaultAUthHandler {}
+pub struct DefaultAuthHandler {}
 
-impl AuthHandler for DefaultAUthHandler {
+impl AuthHandler for DefaultAuthHandler {
     fn auth(&self, _req: &cmd::connect::CmppConnReqPkt, res: &mut cmd::connect::Cmpp3ConnRspPkt) -> bool {
         res.status = 0;
         res.auth_ismg = "认证成功".to_string();
@@ -26,12 +29,13 @@ impl AuthHandler for DefaultAUthHandler {
 pub struct Conn {
     buf: BytesMut,
     auth_handler:  Box<dyn AuthHandler>,
+    limit_msg: Arc<Semaphore>,
 }
 
 impl Conn {
-    pub fn new() -> Conn {
+    pub fn new(limit_msg: Arc<Semaphore>) -> Conn {
         let buf = BytesMut::with_capacity(1024);
-        Conn {buf, auth_handler: Box::new(DefaultAUthHandler{}) }
+        Conn {buf, auth_handler: Box::new(DefaultAuthHandler {}), limit_msg}
     }
 
     pub async fn run(&mut self, stream: TcpStream) -> Result<()> {
@@ -40,11 +44,8 @@ impl Conn {
         let (tx_in, rx_in) = tokio::sync::mpsc::channel(1024);
         let (tx_out, mut rx_out) = tokio::sync::mpsc::channel(1024);
 
-        let tx_out_sender1 = tx_out.clone();
-        let mut handler = MsgInHandler {
-            in_rx: rx_in,
-            tx_out: tx_out_sender1,
-        };
+        // 根据客户端IP 创建限流
+        let mut handler = MsgInHandler::new(rx_in, tx_out.clone(), self.limit_msg.clone());
         tokio::spawn(async move {
             handler.run().await;
         });
@@ -56,7 +57,6 @@ impl Conn {
             }
         });
 
-
         loop {
              match self.read_frame(&mut reader).await? {
                  Some(req) => {
@@ -66,8 +66,7 @@ impl Conn {
                              match res {
                                  Command::ConnectRsp(ref mut res_c) => {
                                      let auth_result = self.auth_handler.auth(&req_c, res_c);
-                                     let tx_out_sender2 = tx_out.clone();
-                                     tx_out_sender2.send(res).await.unwrap();
+                                     tx_out.clone().send(res).await.unwrap();
                                      if !auth_result {
                                          return Err("认证失败".into())
                                      }
