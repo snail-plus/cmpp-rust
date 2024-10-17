@@ -72,8 +72,7 @@ impl Cmpp3SubmitReqPkt {
         let mut pkt = Cmpp3SubmitReqPkt::new();
         let mut buf = bytes::BytesMut::with_capacity(data.len());
         buf.extend_from_slice(data);
-        // Sequence Id
-        pkt.seq_id = buf.get_u32();
+
         // msg_id
         pkt.msg_id = buf.get_u64();
         pkt.pk_total = buf.get_u8();

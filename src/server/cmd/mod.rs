@@ -7,7 +7,7 @@ use crate::server::Result;
 
 pub mod connect;
 mod unknown;
-mod submit;
+pub(crate) mod submit;
 pub mod deliver;
 pub mod active;
 
@@ -44,9 +44,9 @@ pub enum Command {
     ConnectRsp(Cmpp3ConnRspPkt),
     Submit(Cmpp3SubmitReqPkt),
     SubmitRsp(Cmpp3SubmitRspPkt),
-    Deliver(Cmpp3DeliverReqPkt),
     ActiveTest(CmppActiveTestReqPkt),
     ActiveTestRsp(CmppActiveTestRspPkt),
+    DeliverReq(Cmpp3DeliverReqPkt),
     Unknown(Unknown),
 }
 
@@ -69,7 +69,7 @@ impl  Command {
         match self {
             Command::ConnectRsp(res) => res.pack(),
             Command::SubmitRsp(res) => res.pack(),
-            Command::Deliver(res) => res.pack(),
+            Command::DeliverReq(res) => res.pack(),
             _ => {Ok(vec![])}
         }
     }
