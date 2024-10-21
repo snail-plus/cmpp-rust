@@ -68,8 +68,10 @@ impl Cmpp3SubmitReqPkt {
         }
     }
 
-    pub(crate) fn parse_frame(data: &mut Vec<u8>) -> Result<Cmpp3SubmitReqPkt> {
+    pub(crate) fn parse_frame(seq_id: u32, data: &mut Vec<u8>) -> Result<Cmpp3SubmitReqPkt> {
         let mut pkt = Cmpp3SubmitReqPkt::new();
+        pkt.seq_id = seq_id;
+
         let mut buf = bytes::BytesMut::with_capacity(data.len());
         buf.extend_from_slice(data);
 

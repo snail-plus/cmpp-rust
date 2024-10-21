@@ -1,7 +1,5 @@
-use std::sync::Arc;
 use log::{info, warn};
 use tokio::sync::mpsc::{Receiver, Sender};
-use tokio::sync::{Semaphore};
 
 use crate::server::cmd::Command;
 use crate::server::cmd::deliver::Cmpp3DeliverReqPkt;
@@ -10,31 +8,15 @@ use crate::server::cmd::submit::Cmpp3SubmitReqPkt;
 pub struct MsgInHandler {
     rx: Receiver<Command>,
     response_tx: Sender<Command>,
-    limit_msg: Arc<Semaphore>
 }
 
 impl MsgInHandler {
 
-    fn drop(&mut self) {
-        // Add a permit back to the semaphore.
-        //
-        // Doing so unblocks the listener if the max number of
-        // connections has been reached.
-        //
-        // This is done in a `Drop` implementation in order to guarantee that
-        // the permit is added even if the task handling the connection panics.
-        // If `add_permit` was called at the end of the `run` function and some
-        // bug causes a panic. The permit would never be returned to the
-        // semaphore.
-        self.limit_msg.add_permits(1);
-    }
-
-    pub fn new(rx: Receiver<Command>, tx: Sender<Command>, limit_msg: Arc<Semaphore>) -> MsgInHandler {
+    pub fn new(rx: Receiver<Command>, tx: Sender<Command>) -> MsgInHandler {
 
         MsgInHandler{
             rx,
             response_tx: tx,
-            limit_msg,
         }
     }
 

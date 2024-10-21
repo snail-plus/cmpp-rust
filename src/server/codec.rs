@@ -1,5 +1,4 @@
 use std::io;
-use std::io::{Read};
 
 use tokio_util::bytes::{Buf, BufMut, BytesMut};
 use tokio_util::codec::{Decoder, Encoder};
@@ -12,15 +11,9 @@ const CMPP_HEADER_LEN: u32 = 12;
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct CmppMessage {
     total_length: u32,
-    seq_id: u32,
+    pub(crate) seq_id: u32,
     pub command_id: u32,
     pub body_data: Vec<u8>,
-}
-
-#[derive(Debug, Clone, Copy)]
-enum DecodeState {
-    Head(CmppHead),
-    Data(usize),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -65,10 +58,6 @@ impl Decoder for CmppDecoder {
             let command_id = buf.get_u32();
             let seq_id = buf.get_u32();
 
-            if total_length < CMPP3_PACKET_MIN || total_length > CMPP3_PACKET_MAX {
-                return Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid length"));
-            }
-
             self.head = Some(CmppHead{
                 total_length,
                 command_id,
@@ -81,6 +70,10 @@ impl Decoder for CmppDecoder {
         let seq_id = head.seq_id;
         let command_id = head.command_id;
 
+        if total_length < CMPP3_PACKET_MIN || total_length > CMPP3_PACKET_MAX {
+            return Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid length"));
+        }
+
         let body_length = (head.total_length - CMPP_HEADER_LEN) as usize;
         if buf.remaining() < body_length {
             return Ok(None);
@@ -90,6 +83,9 @@ impl Decoder for CmppDecoder {
         buf.copy_to_slice(&mut body_buf);
 
         self.head = None;
+
+        // Make sure the buffer has enough space to read the next head
+        buf.reserve((CMPP_HEADER_LEN as usize).saturating_sub(buf.len()));
 
         Ok(Some(CmppMessage{
             total_length,

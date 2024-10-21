@@ -1,11 +1,7 @@
-use std::collections::HashMap;
-use std::sync::Arc;
 use bytes::BytesMut;
-use log::info;
 use tokio::io;
 use tokio::io::{AsyncReadExt, AsyncWriteExt, ReadHalf};
 use tokio::net::TcpStream;
-use tokio::sync::{Mutex, Semaphore};
 use tokio_util::codec::Decoder;
 
 use crate::server::{cmd, CmppDecoder};
@@ -30,13 +26,12 @@ impl AuthHandler for DefaultAuthHandler {
 pub struct Conn {
     buf: BytesMut,
     auth_handler:  Box<dyn AuthHandler>,
-    limit_msg: Arc<Semaphore>,
 }
 
 impl Conn {
-    pub fn new(limit_msg: Arc<Semaphore>) -> Conn {
+    pub fn new() -> Conn {
         let buf = BytesMut::with_capacity(1024);
-        Conn {buf, auth_handler: Box::new(DefaultAuthHandler {}), limit_msg}
+        Conn {buf, auth_handler: Box::new(DefaultAuthHandler {})}
     }
 
     pub async fn run(&mut self, stream: TcpStream) -> Result<()> {
@@ -46,7 +41,7 @@ impl Conn {
         let (tx_out, mut rx_out) = tokio::sync::mpsc::channel(1024);
 
         // 根据客户端IP 创建限流
-        let mut handler = MsgInHandler::new(rx_in, tx_out.clone(), self.limit_msg.clone());
+        let mut handler = MsgInHandler::new(rx_in, tx_out.clone());
         tokio::spawn(async move {
             handler.run().await;
         });
@@ -102,7 +97,7 @@ impl Conn {
                     }
 
                     while let Some(mut frame) = decoder.decode(buf)? {
-                        let req = Command::parse_frame(frame.command_id, &mut frame.body_data)?;
+                        let req = Command::parse_frame(frame.command_id, frame.seq_id, &mut frame.body_data)?;
                         return Ok(Some(req))
                     }
                 }

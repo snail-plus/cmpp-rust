@@ -27,7 +27,7 @@ impl CmppConnReqPkt {
         }
     }
 
-    pub(crate) fn parse_frame(_data: &mut Vec<u8>) -> Result<CmppConnReqPkt>{
+    pub(crate) fn parse_frame(_seq_id: u32, _data: &mut Vec<u8>) -> Result<CmppConnReqPkt>{
         let pkt = CmppConnReqPkt::new();
         Ok(pkt)
     }

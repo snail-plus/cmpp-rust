@@ -1,27 +1,23 @@
-use std::collections::HashMap;
 use std::net::{SocketAddr};
 use std::str::FromStr;
-use std::sync::Arc;
 use std::time::Duration;
 use crate::server::Result;
 use log::{error, info};
 use tokio::{io, time};
 use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::{Semaphore};
 use super::{Config, Conn};
 
 
 pub struct Server {
     cfg: Config,
     listener: TcpListener,
-    limit_map: HashMap<String, Arc<Semaphore>>,
 }
 
 impl Server {
     pub async fn new(cfg: Config) -> io::Result<Server> {
         let addr = SocketAddr::from_str(&cfg.addr).unwrap();
         let listener = TcpListener::bind(addr).await.unwrap();
-        let svr = Server { cfg, listener, limit_map: HashMap::new() };
+        let svr = Server { cfg, listener };
         Ok(svr)
     }
 
@@ -58,17 +54,7 @@ impl Server {
             let client_addr = socket.peer_addr().unwrap().to_string();
             info!("accept client: {}", client_addr.to_string());
 
-            // 获取对应IP的限流策略
-            let semaphore = match self.limit_map.get(&client_addr) {
-                Some(sem) => sem.clone(),
-                None => {
-                    let new_sem = Arc::new(Semaphore::new(self.cfg.rate));
-                    self.limit_map.insert(client_addr.clone(), new_sem.clone());
-                    new_sem
-                }
-            };
-
-            let mut conn = Conn::new(semaphore.clone());
+            let mut conn = Conn::new();
 
             tokio::spawn(async move {
                 match conn.run(socket).await {

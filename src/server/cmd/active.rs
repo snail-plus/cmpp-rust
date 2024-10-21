@@ -36,6 +36,7 @@ impl CmppActiveTestReqPkt {
 
 }
 
+#[warn(unused)]
 #[derive(Debug, Clone)]
 pub struct CmppActiveTestRspPkt {
     reserved: u8,
