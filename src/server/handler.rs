@@ -30,10 +30,9 @@ impl MsgInHandler {
 
         let res_tx = self.response_tx.clone();
         tokio::spawn(async move {
+            let mut seq = 0;
             while let Some(req) = msg_rx.recv().await {
                 info!("msg req: {:?}", req);
-
-                let mut seq = 0;
                 seq += 1;
 
                 let mut pkt = Cmpp3DeliverReqPkt::new();
