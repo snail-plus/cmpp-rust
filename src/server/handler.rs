@@ -6,30 +6,41 @@ use crate::server::cmd::deliver::Cmpp3DeliverReqPkt;
 use crate::server::cmd::submit::Cmpp3SubmitReqPkt;
 
 pub struct MsgInHandler {
-    rx: Receiver<Command>,
-    response_tx: Sender<Command>,
+    request_rx: Receiver<Command>, // 请求命令队列
+    response_tx: Sender<Command>,  // 响应命令队列
 }
 
 impl MsgInHandler {
-
     pub fn new(rx: Receiver<Command>, tx: Sender<Command>) -> MsgInHandler {
-
-        MsgInHandler{
-            rx,
+        MsgInHandler {
+            request_rx: rx,
             response_tx: tx,
         }
     }
 
-    pub async fn run(&mut self)  {
+    pub async fn run(&mut self) {
         self.handle_msg().await;
     }
 
     async fn handle_msg(&mut self) {
-
-        let (msg_tx, mut msg_rx) = tokio::sync::mpsc::channel::<Cmpp3SubmitReqPkt>(10240);
-
         let res_tx = self.response_tx.clone();
-        tokio::spawn(async move {
+
+        // 处理请求消息
+        while let Some(req) = self.request_rx.recv().await {
+            info!("msg req: {:?}", req);
+
+            match req {
+                Command::Submit(ref submit) => {
+                    // 投递响应
+                    _ = res_tx.send(req.apply().unwrap()).await;
+
+                    // 投递状态报告
+                }
+                _ => {}
+            }
+        }
+
+        /*tokio::spawn(async move {
             let mut seq = 0;
             while let Some(req) = msg_rx.recv().await {
                 info!("msg req: {:?}", req);
@@ -50,7 +61,7 @@ impl MsgInHandler {
 
 
         let tx1 = self.response_tx.clone();
-        while let Some(req) = self.rx.recv().await {
+        while let Some(req) = self.request_rx.recv().await {
 
             match req {
                 Command::Submit(ref submit) => {
@@ -70,6 +81,6 @@ impl MsgInHandler {
                 }
             }
 
-        }
+        }*/
     }
 }

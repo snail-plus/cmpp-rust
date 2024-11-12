@@ -9,7 +9,7 @@ pub struct Config {
 
 
 impl Default for Config {
-    fn default() -> Config {
+    fn default() -> Self {
         Config{
             addr: DEFAULT_LISTENING_ADDR.to_owned(),
             rate: 6000,

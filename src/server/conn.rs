@@ -30,7 +30,7 @@ pub struct Conn {
 
 impl Conn {
     pub fn new() -> Conn {
-        let buf = BytesMut::with_capacity(1024);
+        let buf = BytesMut::with_capacity(2048);
         Conn {buf, auth_handler: Box::new(DefaultAuthHandler {})}
     }
 
@@ -84,25 +84,19 @@ impl Conn {
     async fn read_frame(&mut self, reader: &mut ReadHalf<TcpStream>) -> Result<Option<Command>> {
         let mut decoder = CmppDecoder::default();
 
-        let buf = &mut self.buf;
         loop {
-            match reader.read_buf(buf).await {
-                Ok(read_size) => {
-                    if read_size == 0 {
-                        return if buf.is_empty() {
-                            Ok(None)
-                        } else {
-                            Err("connection reset by peer".into())
-                        };
-                    }
 
-                    while let Some(mut frame) = decoder.decode(buf)? {
-                        let req = Command::parse_frame(frame.command_id, frame.seq_id, &mut frame.body_data)?;
-                        return Ok(Some(req))
-                    }
-                }
-                Err(e) => {
-                    return Err(format!("{:?}", e).into());
+            if let Some(mut frame) = decoder.decode(&mut self.buf)? {
+                let req = Command::parse_frame(frame.command_id, frame.seq_id, &mut frame.body_data)?;
+                return Ok(Some(req))
+            }
+
+            if 0 == reader.read_buf(&mut self.buf).await? {
+                return if self.buf.is_empty() {
+                    Ok(None)
+                } else {
+                    let s = "connection reset by peer".into();
+                    Err(s)
                 }
             }
         }
