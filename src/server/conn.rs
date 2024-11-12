@@ -76,27 +76,38 @@ impl Conn {
                 }
             }
         }
+
+        log::info!("read_frame end");
     }
 
 
     async fn read_frame(&mut self, reader: &mut ReadHalf<TcpStream>) -> Result<Option<Command>> {
         let mut decoder = CmppDecoder::default();
-
+        let mut ex_count = 1;
         loop {
             if let Some(mut frame) = decoder.decode(&mut self.buf)? {
                 let req = Command::parse_frame(frame.command_id, frame.seq_id, &mut frame.body_data)?;
+                ex_count = 0;
                 return Ok(Some(req));
+            }
+
+            if ex_count > 1000 {
+                return Err("read_frame error".into());
             }
 
             if 0 == reader.read_buf(&mut self.buf).await? {
                 return if self.buf.is_empty() {
+                    ex_count += 1;
                     Ok(None)
                 } else {
                     let s = "connection reset by peer".into();
+                    log::error!("{}", s);
                     Err(s)
                 };
             }
         }
+
+
     }
 }
 
