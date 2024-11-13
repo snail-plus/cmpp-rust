@@ -1,4 +1,7 @@
 use std::env;
+use std::io::Write;
+use chrono::Local;
+use env_logger::Builder;
 use log::{error, info};
 use cmpp::server::Config;
 use cmpp::server::server::Server;
@@ -7,8 +10,28 @@ use tokio::{io, signal};
 
 #[tokio::main]
 async fn main() -> io::Result<()> {
-    unsafe { env::set_var("RUST_LOG", "info"); }
-    env_logger::init();
+    // 创建一个日志构建器
+    let mut builder = Builder::new();
+
+    // 设置日志格式，使用 chrono 获取本地时间
+    builder.format(|buf, record| {
+        let local_time = Local::now().format("%Y-%m-%d %H:%M:%S");
+        writeln!(
+            buf,
+            "{} [{}] {} {}",
+            local_time,
+            record.level(),
+            record.target(),
+            record.args()
+        )
+    });
+
+    // 设置日志级别
+    builder.filter(None, log::LevelFilter::Info);
+
+    // 初始化日志记录器
+    builder.init();
+
     let cfg = Config::default();
     let mut srv = Server::new(cfg).await?;
 
