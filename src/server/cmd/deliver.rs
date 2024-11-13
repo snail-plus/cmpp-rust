@@ -1,7 +1,7 @@
-use crate::server::Result;
 use bytes::{Buf, BufMut};
+
 use crate::server::cmd::{CMPP_DELIVER, CMPP_HEADER_LEN};
-use crate::server::cmd::active::{CmppActiveTestReqPkt, CmppActiveTestRspPkt};
+use crate::server::Result;
 use crate::util::str::octet_string;
 
 #[derive(Debug, Clone)]

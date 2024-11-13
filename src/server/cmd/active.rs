@@ -1,4 +1,4 @@
-use bytes::{Buf, BufMut};
+use bytes::BufMut;
 
 use crate::server::cmd::CMPP_ACTIVE_TEST;
 

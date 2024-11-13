@@ -1,4 +1,3 @@
-use std::env;
 use std::io::Write;
 use chrono::Local;
 use env_logger::Builder;

@@ -1,9 +1,7 @@
-use log::{info, warn};
+use log::info;
 use tokio::sync::mpsc::{Receiver, Sender};
 
 use crate::server::cmd::Command;
-use crate::server::cmd::deliver::Cmpp3DeliverReqPkt;
-use crate::server::cmd::submit::Cmpp3SubmitReqPkt;
 
 pub struct MsgInHandler {
     request_rx: Receiver<Command>, // 请求命令队列
@@ -22,6 +20,7 @@ impl MsgInHandler {
         self.handle_msg().await;
     }
 
+    #[allow(unused_variables)]
     async fn handle_msg(&mut self) {
         let res_tx = self.response_tx.clone();
 
