@@ -9,11 +9,8 @@ pub struct CmppActiveTestReqPkt {
 
 impl CmppActiveTestReqPkt {
 
-    pub(crate) fn parse_frame(data: &mut Vec<u8>) -> crate::server::Result<CmppActiveTestReqPkt> {
-        let mut buf = bytes::BytesMut::with_capacity(data.len());
-        let mut pkt = CmppActiveTestReqPkt{seq_id: 0};
-        let seq_id = buf.get_u32();
-        pkt.seq_id = seq_id;
+    pub(crate) fn parse_frame(seq_id : u32) -> crate::server::Result<CmppActiveTestReqPkt> {
+        let pkt = CmppActiveTestReqPkt{seq_id };
         Ok(pkt)
     }
 

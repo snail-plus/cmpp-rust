@@ -1,6 +1,6 @@
 use crate::server::cmd::active::{CmppActiveTestReqPkt, CmppActiveTestRspPkt};
 use crate::server::cmd::connect::{Cmpp3ConnRspPkt, CmppConnReqPkt};
-use crate::server::cmd::deliver::Cmpp3DeliverReqPkt;
+use crate::server::cmd::deliver::{Cmpp3DeliverReqPkt, Cmpp3DeliverResPkt};
 use crate::server::cmd::submit::{Cmpp3SubmitReqPkt, Cmpp3SubmitRspPkt};
 use crate::server::cmd::unknown::Unknown;
 use crate::server::Result;
@@ -27,6 +27,7 @@ pub const CMPP_HEADER_LEN: u32 = 12;
 const CMPP3CONN_RSP_PKT_LEN: u32 = 4 + 4 + 4 + 4 + 16 + 1;    //33d, 0x21
 
 const CMPP_DELIVER: u32 = 5;
+const CMPP_DELIVER_RES: u32 = 2147483653;
 
 
 // 连接失败枚举
@@ -46,6 +47,7 @@ pub enum Command {
     ActiveTest(CmppActiveTestReqPkt),
     ActiveTestRsp(CmppActiveTestRspPkt),
     DeliverReq(Cmpp3DeliverReqPkt),
+    DeliverRes(Cmpp3DeliverResPkt),
     Unknown(Unknown),
 }
 
@@ -55,7 +57,8 @@ impl  Command {
         let command = match command_id {
             CMPP_CONNECT => Command::Connect(CmppConnReqPkt::parse_frame(seq_id, frame)?),
             CMPP_SUBMIT => Command::Submit(Cmpp3SubmitReqPkt::parse_frame(seq_id, frame)?),
-            CMPP_ACTIVE_TEST => Command::ActiveTest(CmppActiveTestReqPkt::parse_frame(frame)?),
+            CMPP_ACTIVE_TEST => Command::ActiveTest(CmppActiveTestReqPkt::parse_frame(seq_id)?),
+            CMPP_DELIVER_RES => Command::DeliverRes(Cmpp3DeliverResPkt::parse_frame(seq_id, frame)?),
             _ => {
                 return Ok(Command::Unknown(Unknown::new(command_id)));
             }

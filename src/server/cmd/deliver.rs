@@ -1,6 +1,7 @@
 use crate::server::Result;
-use bytes::BufMut;
+use bytes::{Buf, BufMut};
 use crate::server::cmd::{CMPP_DELIVER, CMPP_HEADER_LEN};
+use crate::server::cmd::active::{CmppActiveTestReqPkt, CmppActiveTestRspPkt};
 use crate::util::str::octet_string;
 
 #[derive(Debug, Clone)]
@@ -64,5 +65,27 @@ impl Cmpp3DeliverReqPkt {
         buffer.put_slice(octet_string(self.link_id.clone(), 20).as_bytes());
 
         Ok(buffer)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Cmpp3DeliverResPkt {
+    pub msg_id: u64,
+    pub result :u32,
+    pub seq_id: u32,
+}
+
+impl Cmpp3DeliverResPkt {
+    pub(crate) fn parse_frame(seq_id: u32, data: &Vec<u8>) -> Result<Cmpp3DeliverResPkt> {
+
+        let mut buf = bytes::BytesMut::with_capacity(data.len());
+        buf.extend_from_slice(data);
+
+        let pkt = Cmpp3DeliverResPkt {
+            msg_id: buf.get_u64(),
+            result: buf.get_u32(),
+            seq_id,
+        };
+        Ok(pkt)
     }
 }
