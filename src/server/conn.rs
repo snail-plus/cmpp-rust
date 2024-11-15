@@ -8,6 +8,7 @@ use crate::server::{cmd, CmppDecoder};
 use crate::server::cmd::Command;
 use crate::server::handler::MsgInHandler;
 use crate::server::Result;
+use crate::util::str::octet_string;
 
 pub trait AuthHandler: Send + Sync {
     fn auth(&self, req: &cmd::connect::CmppConnReqPkt, res: &mut cmd::connect::Cmpp3ConnRspPkt) -> bool;
@@ -16,7 +17,28 @@ pub trait AuthHandler: Send + Sync {
 pub struct DefaultAuthHandler {}
 
 impl AuthHandler for DefaultAuthHandler {
-    fn auth(&self, _req: &cmd::connect::CmppConnReqPkt, res: &mut cmd::connect::Cmpp3ConnRspPkt) -> bool {
+    fn auth(&self, req: &cmd::connect::CmppConnReqPkt, res: &mut cmd::connect::Cmpp3ConnRspPkt) -> bool {
+        let user = "900001".to_string();
+        let password = "888888".to_string();
+
+        let  octet_user = octet_string(user, 6);
+        let ts_str = format!("{:010}", req.timestamp);
+
+        let len = octet_user.len() + 9 + password.len() + 10;
+        let mut buf = BytesMut::with_capacity(len);
+        buf.extend_from_slice(octet_user.as_bytes());
+        buf.extend_from_slice(&vec![0u8; 9]);
+        buf.extend_from_slice(password.as_bytes());
+        buf.extend_from_slice(ts_str.as_bytes());
+
+        let auth_src: &[u8] = buf.iter().as_slice();
+        let hasher = md5::compute(auth_src);
+
+        if req.auth_src != hasher.as_slice() {
+            res.status = 1;
+            return false;
+        }
+
         res.status = 0;
         res.auth_ismg = "认证成功".to_string();
         true
@@ -66,11 +88,14 @@ impl Conn {
                 empty_frame_count = 0;
                 match req {
                     Command::Connect(ref req_c) => {
+                        log::info!("connect req: {:?}", req_c);
+
                         let mut res = req.apply()?;
                         if let Command::ConnectRsp(ref mut res_c) = res {
                             let auth_result = self.auth_handler.auth(&req_c, res_c);
                             tx_out.clone().send(res).await?;
                             if !auth_result {
+                                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
                                 return Err("认证失败".into());
                             }
                         }

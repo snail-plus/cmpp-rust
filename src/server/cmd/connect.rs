@@ -1,14 +1,14 @@
-use bytes::BufMut;
+use bytes::{Buf, BufMut};
 
 use crate::server::cmd::{CMPP3CONN_RSP_PKT_LEN, CMPP_CONNECT_RESP};
 use crate::server::Result;
-use crate::util::str::octet_string;
+use crate::util::str::{oct_string, octet_string};
 
 #[derive(Debug, Clone)]
 pub struct CmppConnReqPkt {
     pub src_addr: String,
-    pub auth_src: String,
-    pub version: String,
+    pub auth_src: Vec<u8>,
+    pub version: u8,
     pub timestamp: u32,
     pub secret: String,
     pub seq_id: u32,
@@ -19,16 +19,32 @@ impl CmppConnReqPkt {
     fn new() -> CmppConnReqPkt {
         CmppConnReqPkt {
             src_addr: "".to_string(),
-            auth_src: "".to_string(),
-            version: "".to_string(),
+            auth_src: vec![],
+            version: 0,
             timestamp: 0,
             secret: "".to_string(),
             seq_id: 0,
         }
     }
 
-    pub(crate) fn parse_frame(_seq_id: u32, _data: &mut Vec<u8>) -> Result<CmppConnReqPkt>{
-        let pkt = CmppConnReqPkt::new();
+    pub(crate) fn parse_frame(_seq_id: u32, data: &mut Vec<u8>) -> Result<CmppConnReqPkt>{
+        let mut pkt = CmppConnReqPkt::new();
+
+        let mut buf = bytes::BytesMut::with_capacity(data.len());
+        buf.extend_from_slice(data);
+
+        // src_addr
+        let mut src_addr_vec = vec![0u8; 6];
+        buf.copy_to_slice(&mut src_addr_vec);
+        pkt.src_addr = oct_string(src_addr_vec);
+        // AuthSrc
+        let mut auth_src_vec = vec![0u8; 16];
+        buf.copy_to_slice(&mut auth_src_vec);
+        pkt.auth_src = auth_src_vec;
+        // version
+        pkt.version = buf.get_u8();
+        // timestamp
+        pkt.timestamp = buf.get_u32();
         Ok(pkt)
     }
 

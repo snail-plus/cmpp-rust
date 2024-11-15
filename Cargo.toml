@@ -20,3 +20,4 @@ tokio-util = { version = "0.7.10", features = ["codec"] }
 rsa = "0.9.6"
 base64 = "0.22.1"
 rand = "0.8.5"
+md5 = "0.7.0"
