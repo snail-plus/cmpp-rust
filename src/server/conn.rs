@@ -46,6 +46,7 @@ impl Conn {
             handler.run().await;
         });
 
+        // 独立处理发送数据
         tokio::spawn(async move {
             while let Some(req) = rx_out.recv().await {
                 let _ = writer.write_all(&req.into_frame().unwrap()).await;
@@ -74,8 +75,6 @@ impl Conn {
                             }
                         }
                     }
-
-                    Command::ActiveTest(ref _req_c) =>  {}
 
                     _ => {
                         sender.send(req).await?;
