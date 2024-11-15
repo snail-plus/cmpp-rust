@@ -66,17 +66,17 @@ impl Conn {
                 match req {
                     Command::Connect(ref req_c) => {
                         let mut res = req.apply()?;
-                        match res {
-                            Command::ConnectRsp(ref mut res_c) => {
-                                let auth_result = self.auth_handler.auth(&req_c, res_c);
-                                tx_out.clone().send(res).await?;
-                                if !auth_result {
-                                    return Err("认证失败".into());
-                                }
+                        if let Command::ConnectRsp(ref mut res_c) = res {
+                            let auth_result = self.auth_handler.auth(&req_c, res_c);
+                            tx_out.clone().send(res).await?;
+                            if !auth_result {
+                                return Err("认证失败".into());
                             }
-                            _ => {}
                         }
                     }
+
+                    Command::ActiveTest(ref _req_c) =>  {}
+
                     _ => {
                         sender.send(req).await?;
                     }
