@@ -33,6 +33,9 @@ async fn main() {
             result1 = rx1.recv() => {
                 if let Some(msg) = result1 {
                     println!("Received: {}", msg);
+                    if msg.contains("channel 1") {
+                        rx1.close();
+                    }
                 } else {
                     // 通道已关闭，退出循环
                     break;
