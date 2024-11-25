@@ -47,7 +47,7 @@ impl Server {
     }
 
     pub async fn run(&mut self) -> Result<()> {
-        info!("start server, addr: {}", &self.cfg.addr);
+        info!("start cmpp server, addr: {}", &self.cfg.addr);
 
         loop {
             let socket = self.accept().await?;
@@ -62,7 +62,7 @@ impl Server {
                         info!("client disconnect, client addr: {}", client_addr)
                     }
                     Err(e) => {
-                        error!("serve err,exit : {:?}, addr: {}", e, client_addr.to_string())
+                        error!("exit loop: {:?}, addr: {}", e, client_addr.to_string())
                     }
                 }
             });
