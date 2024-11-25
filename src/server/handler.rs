@@ -27,8 +27,7 @@ impl MsgInHandler {
                 Command::Submit(ref submit) => {
                     // 投递响应
                     _ = res_tx.send(req.apply().unwrap()).await;
-
-                    // 投递状态报告
+                    // 投递状态报告 待定
                 }
                 _ => {}
             }

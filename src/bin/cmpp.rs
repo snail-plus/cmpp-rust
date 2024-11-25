@@ -43,7 +43,7 @@ async fn main() -> io::Result<()> {
             // Errors encountered when handling individual connections do not
             // bubble up to this point.
             if let Err(err) = res {
-                error!("failed to accept: {:?}", err);
+                error!("failed to accept : {:?}", err);
             }
         }
         _ = signal::ctrl_c() => {
