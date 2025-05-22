@@ -2,6 +2,7 @@ use log::info;
 use tokio::sync::mpsc::{Receiver, Sender};
 
 use crate::server::cmd::Command;
+use crate::server::cmd::deliver::Cmpp3DeliverReqPkt;
 
 pub struct MsgInHandler {
     request_rx: Receiver<Command>, // 请求命令队列
@@ -27,7 +28,12 @@ impl MsgInHandler {
                 Command::Submit(ref submit) => {
                     // 投递响应
                     _ = res_tx.send(req.apply().unwrap()).await;
-                    // 投递状态报告 待定vfff
+                    // 投递状态报告 待定
+                    let mut report = Cmpp3DeliverReqPkt::new();
+                    report.msg_id = submit.msg_id;
+                    report.seq_id = submit.seq_id;
+                    report.dest_id = submit.dest_terminal_id[0].clone();
+                    _ = res_tx.send(Command::DeliverReq(report)).await;
                 }
                 _ => {}
             }
